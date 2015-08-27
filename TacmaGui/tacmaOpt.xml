@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='utf-8'?>
+<TacmaOptions version="Debug">
+  <ADATAFILE>tacmaData.xml</ADATAFILE>
+  <ASAVE_INTERVAL>0.1</ASAVE_INTERVAL>
+  <BDATAFILE>tacmaData.xml.backup</BDATAFILE>
+  <BSAVE_INTERVAL>0.2</BSAVE_INTERVAL>
+  <MAIN_WINDOW>
+    <HX>1019</HX>
+    <HY>233</HY>
+    <X0>90</X0>
+    <Y0>195</Y0>
+  </MAIN_WINDOW>
+  <UPDATE_INT>2</UPDATE_INT>
+</TacmaOptions>

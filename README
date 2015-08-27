@@ -1,0 +1,15 @@
+Tacma - work activity tracker
+Shows statistics on working time durations which were taken by user defined activities with respect to their priorities.
+
+LINUX INSTALLATION
+
+Requires python2, PyQt5
+In terminal cd to current directory and
+> sudo python setup.py install
+Program will be installed to default /usr/bin directory
+
+To clear directory after installation run
+> sudo python setup.py clear
+
+To uninstall package run
+> sudo python setup.py uninstall
