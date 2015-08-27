@@ -6,6 +6,7 @@ class ViewModel(QtCore.QAbstractTableModel):
     def __init__(self, dt):
         super(ViewModel, self).__init__()
         self.dt = dt
+        dt.emitter.current_activity_changed.connect(self._act_changed)
 
     #table columns names and order
     cnames = {'status': (0, ''),
@@ -77,8 +78,6 @@ class ViewModel(QtCore.QAbstractTableModel):
                     self.dt.turn_on(self.get_iden(index))
                 else:
                     self.dt.turn_off()
-            self.dataChanged.emit(self.createIndex(0, 0),
-                    self.createIndex(self.rowCount(), 0))
             return True
         return False
 
@@ -124,14 +123,19 @@ class ViewModel(QtCore.QAbstractTableModel):
 
     def view_update(self):
         'update columns which change through time'
-        def indrange(colname):
-            col = self.cnames[colname][0]
-            i0 = self.createIndex(0, col)
-            i1 = self.createIndex(self.rowCount(), col)
-            return (i0, i1)
-        self.dataChanged.emit(*indrange('l24h'))
-        self.dataChanged.emit(*indrange('l1w'))
-        self.dataChanged.emit(*indrange('l4w'))
+        self.update_column('l24h')
+        self.update_column('l1w')
+        self.update_column('l4w')
+
+    def update_column(self, ccode):
+        'update column by its ccname'
+        col = self.cnames[ccode][0]
+        i0 = self.createIndex(0, col)
+        i1 = self.createIndex(self.rowCount(), col)
+        self.dataChanged.emit(i0, i1)
+
+    def _act_changed(self, iden):
+        self.update_column('status')
 
 
 class TableDelegate(QtWidgets.QItemDelegate):
@@ -165,8 +169,9 @@ class TableDelegate(QtWidgets.QItemDelegate):
 
 
 class AddEditDialog(QtWidgets.QDialog):
-    def __init__(self, act=None, parent=None):
+    def __init__(self, act=None, apply_func=None, parent=None):
         super(AddEditDialog, self).__init__(parent)
+        self.apply_func = apply_func
         self.setWindowTitle('Add/Edit Activity')
         self.resize(600, self.height())
         layout = QtWidgets.QGridLayout()
@@ -183,9 +188,12 @@ class AddEditDialog(QtWidgets.QDialog):
         self.edcom.setFont(QtGui.QFont('Courier', 10))
         bbox = QtWidgets.QDialogButtonBox(self)
         bbox.setStandardButtons(QtWidgets.QDialogButtonBox.Cancel |
-                QtWidgets.QDialogButtonBox.Ok)
+                QtWidgets.QDialogButtonBox.Ok |
+                QtWidgets.QDialogButtonBox.Apply)
         bbox.accepted.connect(self.accept)
         bbox.rejected.connect(self.reject)
+        ab = bbox.button(QtWidgets.QDialogButtonBox.Apply)
+        ab.clicked.connect(self.applied)
 
         layout.addWidget(labtit, 0, 0)
         layout.addWidget(labpr, 1, 0)
@@ -196,6 +204,10 @@ class AddEditDialog(QtWidgets.QDialog):
         layout.addWidget(bbox, 3, 0, 1, 2)
 
         self.setLayout(layout)
+
+    def applied(self):
+        if self.apply_func is not None:
+            self.apply_func(self)
 
     def accept(self):
         try:
@@ -269,15 +281,19 @@ class MainWindowTable(QtWidgets.QTableView):
         menu.popup(self.viewport().mapToGlobal(pnt))
 
     def _add_action(self):
-        dlg = AddEditDialog(None, self)
-        if (dlg.exec_()):
+        def applyfunc(dlg):
             self.model().add_action(*dlg.ret_value())
+        dlg = AddEditDialog(None, applyfunc, self)
+        if (dlg.exec_()):
+            applyfunc(dlg)
 
     def _edit_action(self, index):
-        a = self.model().get_act(index)
-        dlg = AddEditDialog(a, self)
-        if (dlg.exec_()):
+        def applyfunc(dlg):
             self.model().edit_act(index, dlg.ret_value())
+        a = self.model().get_act(index)
+        dlg = AddEditDialog(a, applyfunc, self)
+        if (dlg.exec_()):
+            applyfunc(dlg)
 
     def _fin_action(self, index):
         self.model().finish(index)

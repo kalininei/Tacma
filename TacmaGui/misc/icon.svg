@@ -51,9 +51,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="5.8433779"
-     inkscape:cx="325.76801"
-     inkscape:cy="949.59526"
+     inkscape:zoom="2.921689"
+     inkscape:cx="353.09798"
+     inkscape:cy="935.99483"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -122,6 +122,40 @@
          id="path3823"
          d="m 554.72896,272.15299 c -43.56606,0 -74.18427,35.26979 -81.89909,73.39009 -7.71483,38.57401 8.90608,73.74464 52.47214,73.74464 42.65833,0 73.21992,-35.62444 80.48093,-73.74464 7.71482,-36.75886 -8.39566,-73.39009 -51.05398,-73.39009 z m -7.79991,37.22686 c 15.88346,0 15.58564,21.1874 12.40895,36.16323 -2.72288,15.42954 -11.0617,36.87232 -26.94516,36.87232 -16.79108,0 -15.84091,-21.44278 -13.11803,-36.87232 4.08431,-19.51396 14.49365,-36.16323 27.65424,-36.16323 z"
          style="font-size:40px;font-style:italic;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:t1xbttsc;-inkscape-font-specification:t1xbttsc Italic"
+         inkscape:connector-curvature="0" />
+    </g>
+    <rect
+       style="fill:none;stroke:#4d4d4d;stroke-width:7.01900005;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:12;stroke-opacity:1;stroke-dasharray:84.22800064, 84.22800064;stroke-dashoffset:16.14370012"
+       id="rect3847-2"
+       width="57.419945"
+       height="57.419949"
+       x="-128.19864"
+       y="380.6423"
+       inkscape:export-filename="/home/ek/Work/Tacma/TacmaGui/misc/icon_run.png"
+       inkscape:export-xdpi="178.77789"
+       inkscape:export-ydpi="178.77789"
+       transform="matrix(0,-1,1,0,0,0)" />
+    <g
+       id="g4471-6"
+       style="opacity:0.69999999999999996;fill:#ff0000;fill-opacity:1;stroke-width:28.58370972000000165;stroke-miterlimit:12;stroke-dasharray:none"
+       transform="matrix(0.13328408,0,0,0.13328408,343.31722,63.578699)"
+       inkscape:export-filename="/home/ek/Work/Tacma/TacmaGui/misc/icon_run.png"
+       inkscape:export-xdpi="178.77789"
+       inkscape:export-ydpi="178.77789">
+      <path
+         id="path3827-2"
+         d="m 465.73903,120.05467 c -42.65843,0 -73.47518,35.62433 -81.19001,73.74464 -7.26101,38.12019 8.65082,73.03555 51.76307,73.03555 42.65832,0 73.929,-35.82299 81.19001,-73.03555 7.71482,-37.66649 -9.10474,-73.74464 -51.76307,-73.74464 z m -7.44537,36.87232 c 16.79109,0 15.94019,21.44267 12.7635,36.87232 -3.63051,19.06004 -14.94747,36.16323 -27.65424,36.16323 -16.33728,0 -14.77729,-21.18751 -12.05441,-36.16323 3.17669,-15.42965 10.60788,-36.87232 26.94515,-36.87232 z"
+         style="font-size:40px;font-style:italic;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#ff0000;fill-opacity:1;stroke:none;font-family:t1xbttsc;-inkscape-font-specification:t1xbttsc Italic"
+         inkscape:connector-curvature="0" />
+      <path
+         inkscape:connector-curvature="0"
+         id="path3825-0"
+         d="m 658.5917,112.85878 -50.82707,0 -275.46459,313.13108 50.37326,0 275.9184,-313.13108"
+         style="font-size:40px;font-style:italic;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#ff0000;fill-opacity:1;stroke:none;font-family:t1xbttsc;-inkscape-font-specification:t1xbttsc Italic" />
+      <path
+         id="path3823-5"
+         d="m 554.72896,272.15299 c -43.56606,0 -74.18427,35.26979 -81.89909,73.39009 -7.71483,38.57401 8.90608,73.74464 52.47214,73.74464 42.65833,0 73.21992,-35.62444 80.48093,-73.74464 7.71482,-36.75886 -8.39566,-73.39009 -51.05398,-73.39009 z m -7.79991,37.22686 c 15.88346,0 15.58564,21.1874 12.40895,36.16323 -2.72288,15.42954 -11.0617,36.87232 -26.94516,36.87232 -16.79108,0 -15.84091,-21.44278 -13.11803,-36.87232 4.08431,-19.51396 14.49365,-36.16323 27.65424,-36.16323 z"
+         style="font-size:40px;font-style:italic;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#ff0000;fill-opacity:1;stroke:none;font-family:t1xbttsc;-inkscape-font-specification:t1xbttsc Italic"
          inkscape:connector-curvature="0" />
     </g>
   </g>

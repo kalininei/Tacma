@@ -18,6 +18,10 @@ def get_icon(s):
         _icon_set = {
                 "tacma":
                 QtGui.QIcon(QtGui.QPixmap(resfile('misc/mainwin.png'))),
+                "icon-run":
+                QtGui.QIcon(QtGui.QPixmap(resfile('misc/icon_run.png'))),
+                "icon-stop":
+                QtGui.QIcon(QtGui.QPixmap(resfile('misc/icon_stop.png'))),
         }
     return _icon_set[s]
 

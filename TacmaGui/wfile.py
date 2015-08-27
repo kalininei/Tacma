@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import xml.etree.ElementTree as ET
 import tacmaopt
 import bproc
+from PyQt5 import QtCore
 
 
 class Act(object):
@@ -142,9 +143,14 @@ class Act(object):
 
 
 class TacmaData(object):
-    def __init__(self, fname):
+
+    def __init__(self, fname, emitter):
+        """ fname - data location
+            emitter - MainWindow.DataInfoTracker
+        """
         print 'Reading data from %s' % os.path.abspath(fname)
         self.fname = fname
+        self.emitter = emitter
         self.acts = []
         self.start_date = None
         try:
@@ -240,7 +246,11 @@ class TacmaData(object):
         pass
 
     def add_action(self, name, prior, comment=''):
-        self.acts.append(Act(self._next_iden(), name, prior, self))
+        iden = self._next_iden()
+        self.acts.append(Act(iden, name, prior, self))
+        if comment != '':
+            self.set_comment(iden, comment)
+
         self.write_data()
 
     def act_count(self):
@@ -324,6 +334,7 @@ class TacmaData(object):
             aa.switch()
         self._gai(iden).switch()
         self.write_data()
+        self.emitter.current_activity_changed.emit(self._gaa().iden)
 
     def turn_off(self):
         'Stop active action'
@@ -331,6 +342,7 @@ class TacmaData(object):
         if aa:
             aa.switch()
         self.write_data()
+        self.emitter.current_activity_changed.emit(-1)
 
     def finish(self, iden):
         'Finish action'
