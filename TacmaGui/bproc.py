@@ -200,5 +200,3 @@ if __name__ == "__main__":
         return args[0] * args[1]
     r2 = PieceWiseFun.func(afun, f1, f3)
     print r2
-
-
