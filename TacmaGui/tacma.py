@@ -24,9 +24,6 @@ def main():
     # -- read options
     tacmaopt.opt.read()
 
-    # -- initialize qt application
-    app = QtWidgets.QApplication(sys.argv)
-
     mw = mainwinwid.MainWindow(tacmaopt.opt.wfile)
     mw.show()
 
@@ -34,4 +31,7 @@ def main():
     sys.exit(app.exec_())
 
 if __name__ == '__main__':
+    # initialize qt application here to prevent
+    # segmentation fault on exit
+    app = QtWidgets.QApplication(sys.argv)
     main()

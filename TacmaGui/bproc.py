@@ -61,6 +61,7 @@ class PieceWiseFun(object):
     def add_section(self, tstart, tend, value, boundto=None):
         """ Adds section [tstart, tend] with value
             boundto -- [t0, t1]  - bounds data to this interval
+            if value=None -> simply removes this section from data
         """
         tstart, tend = float(tstart), float(tend)
         if boundto is not None:
@@ -68,8 +69,10 @@ class PieceWiseFun(object):
             tend = min(tend, boundto[1])
         if tend <= tstart:
             return
-        s = (tstart, tend, value)
-        newdt = [s]
+        if value is not None:
+            newdt = [(tstart, tend, value)]
+        else:
+            newdt = []
         for d in self._dt[:]:
             if d[0] >= tend or d[1] <= tstart:
                 newdt.append(d)
@@ -80,10 +83,46 @@ class PieceWiseFun(object):
                 continue
             elif d[0] < tend < d[1]:
                 newdt.append((tend, d[1], d[2]))
-            elif d[0] < tstart < d[0]:
+            elif d[0] < tstart < d[1]:
                 newdt.append((d[0], tstart, d[2]))
         newdt.sort(key=lambda x: x[0])
         self._dt = newdt
+
+    def clear(self):
+        " removes all information "
+        self._dt = []
+
+    def cut(self, tstart, tend):
+        """ -> PieceWiseFun
+            Returns function which equals present on interval [t0, t1]
+            and zero outside it.
+        """
+        ret = PieceWiseFun()
+        for d in self._dt:
+            if d[1] <= tstart:
+                continue
+            elif d[0] >= tend:
+                break
+            elif tstart <= d[0] <= tend and tstart <= d[1] <= tend:
+                ret._dt.append((d[0], d[1], d[2]))
+            elif d[0] <= tstart and d[1] >= tend:
+                ret._dt.append((tstart, tend, d[2]))
+            elif d[0] < tstart:
+                ret._dt.append((tstart, d[1], d[2]))
+            elif d[1] > tend:
+                ret._dt.append((d[0], tend, d[2]))
+
+        return ret
+
+    def boundaries(self):
+        """ -> (t0, t1).
+            Returns lowest and largest coordinate value
+            None if secnum() == 0
+        """
+        if self.secnum() == 0:
+            return None
+        else:
+            return (self._dt[0][0], self._dt[-1][1])
 
     def secnum(self):
         return len(self._dt)
@@ -101,6 +140,9 @@ class PieceWiseFun(object):
         for d in self._dt:
             if t >= d[0] and t < d[1]:
                 return d[2]
+        if t == float('inf'):
+            if self.secnum() > 0 and t == self._dt[-1][1]:
+                return self._dt[-1][2]
         return 0
 
     def integral(self, t0=None, t1=None):
@@ -142,8 +184,10 @@ class PieceWiseFun(object):
                 f2 = PieceWiseFun(...)
                 f3 = PieceWiseFun.func(lambda x, y: x + y, f1, f2)
         """
-        f = cls._same_stencil(args)
         ret = cls()
+        if len(args) == 0:
+            return ret
+        f = cls._same_stencil(args)
         for i, d in enumerate(f[0]._dt):
             t1, t2 = d[0], d[1]
             vals = [x._dt[i][2] for x in f]
@@ -188,15 +232,10 @@ class PieceWiseFun(object):
         self._dt = newdt
 
 if __name__ == "__main__":
-    f1 = PieceWiseFun([(285, 341, 1), (341, 937, 0.25)])
-    f3 = PieceWiseFun([(295, 315, 1), (811, 819, 1), (828, 830, 1)])
-    print ' ---- '
-    print f1
-    print ' ---- '
-    print f3
-    print ' ---- '
+    A = float('inf')
+    f1 = PieceWiseFun([(285, 341, 1), (341, A, 0.25)])
+    sumfun = PieceWiseFun.func(lambda *x: sum(x), f1)
+    [sumfun] = PieceWiseFun._same_stencil([f1])
 
-    def afun(*args):
-        return args[0] * args[1]
-    r2 = PieceWiseFun.func(afun, f1, f3)
-    print r2
+    print f1
+    print sumfun

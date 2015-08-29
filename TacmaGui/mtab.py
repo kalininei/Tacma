@@ -55,17 +55,20 @@ class ViewModel(QtCore.QAbstractTableModel):
             elif index.column() == self.cnames['weight'][0]:
                 return self.dt.weight(iden)
             elif index.column() == self.cnames['created'][0]:
-                return self.dt.created(iden)
+                return self.dt.created_time(iden)
             elif index.column() == self.cnames['finished'][0]:
-                return self.dt.finished(iden)
+                return self.dt.finished_time(iden)
             elif index.column() == self.cnames['l24h'][0]:
-                return self.dt.get_stat(iden, 86400)
+                return (self.dt.stat.must_time(iden, 86400),
+                        self.dt.stat.real_time(iden, 86400))
             elif index.column() == self.cnames['l1w'][0]:
-                return self.dt.get_stat(iden, 604800)
+                return (self.dt.stat.must_time(iden, 604800),
+                        self.dt.stat.real_time(iden, 604800))
             elif index.column() == self.cnames['l4w'][0]:
-                return self.dt.get_stat(iden, 2419200)
+                return (self.dt.stat.must_time(iden, 2419200),
+                        self.dt.stat.real_time(iden, 2419200))
             elif index.column() == self.cnames['lses'][0]:
-                return self.dt.get_cur_ses_time(iden)
+                return self.dt.stat.last_session(iden)
         elif role == QtCore.Qt.CheckStateRole:
             iden = self.get_iden(index)
             if index.column() == self.cnames['status'][0]:
@@ -93,9 +96,10 @@ class ViewModel(QtCore.QAbstractTableModel):
         return ret
 
     def add_action(self, name, priority, comment):
-        'adds a new action'
-        self.dt.add_action(name, priority, comment)
+        'adds a new action. Returns its iden'
+        ret = self.dt.add_action(name, priority, comment)
         self.layoutChanged.emit()
+        return ret
 
     def edit_act(self, index, newval):
         ' (table index, (name, priority, comment)). Set new data to action'
@@ -103,6 +107,12 @@ class ViewModel(QtCore.QAbstractTableModel):
         self.dt.change_action_name(i, newval[0])
         self.dt.change_action_prior(i, newval[1])
         self.dt.set_comment(i, newval[2])
+
+    def edit_act_by_iden(self, iden, newval):
+        ' (task identifier, (name, priority, comment)). Set new data to action'
+        self.dt.change_action_name(iden, newval[0])
+        self.dt.change_action_prior(iden, newval[1])
+        self.dt.set_comment(iden, newval[2])
 
     def finish(self, index):
         self.dt.finish(self.get_iden(index))
@@ -136,12 +146,16 @@ class ViewModel(QtCore.QAbstractTableModel):
         'update column by its ccname'
         col = self.cnames[ccode][0]
         i0 = self.createIndex(0, col)
-        i1 = self.createIndex(self.rowCount()-1, col)
+        i1 = self.createIndex(self.rowCount() - 1, col)
         self.dataChanged.emit(i0, i1)
 
     def _tacma_data_changed(self, event, iden):
         if event == 'ActiveTaskChanged':
             self.update_column('status')
+        elif event == 'PriorityChanged':
+            self.update_column('prior')
+        elif event == 'NameChanged':
+            self.update_column('title')
 
 
 class TableDelegate(QtWidgets.QItemDelegate):
@@ -185,7 +199,7 @@ class TableDelegate(QtWidgets.QItemDelegate):
 
 
 class AddEditDialog(QtWidgets.QDialog):
-    def __init__(self, act=None, apply_func=None, parent=None):
+    def __init__(self, apply_func, act=None, parent=None):
         super(AddEditDialog, self).__init__(parent)
         self.apply_func = apply_func
         self.setWindowTitle('Add/Edit Activity')
@@ -222,16 +236,19 @@ class AddEditDialog(QtWidgets.QDialog):
         self.setLayout(layout)
 
     def applied(self):
-        if self.apply_func is not None:
-            self.apply_func(self)
-
-    def accept(self):
         try:
-            self._check_input()
-            super(AddEditDialog, self).accept()
+            self.apply_func(*self.ret_value())
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             QtWidgets.QMessageBox.warning(self, "Warning",
                     "Invalid Input: %s" % str(e))
+            return False
+        return True
+
+    def accept(self):
+        if self.applied():
+            super(AddEditDialog, self).accept()
 
     def ret_value(self):
         '-> (str name, float priority, str comments)'
@@ -242,10 +259,6 @@ class AddEditDialog(QtWidgets.QDialog):
         if len(nm) < 3:
             raise Exception("Title should contain at least 3 characters")
         return (nm, pr, self.edcom.toPlainText())
-
-    def _check_input(self):
-        'raises an error if input is not correct'
-        self.ret_value()
 
 
 class MainWindowTable(QtWidgets.QTableView):
@@ -297,19 +310,22 @@ class MainWindowTable(QtWidgets.QTableView):
         menu.popup(self.viewport().mapToGlobal(pnt))
 
     def _add_action(self):
-        def applyfunc(dlg):
-            self.model().add_action(*dlg.ret_value())
-        dlg = AddEditDialog(None, applyfunc, self)
-        if (dlg.exec_()):
-            applyfunc(dlg)
+        def applyfunc(name, prior, comm):
+            if self.__tmp is None:
+                self.__tmp = self.model().add_action(name, prior, comm)
+            else:
+                self.model().edit_act_by_iden(
+                        self.__tmp, (name, prior, comm))
+
+        self.__tmp = None
+        AddEditDialog(applyfunc, None, self).exec_()
 
     def _edit_action(self, index):
-        def applyfunc(dlg):
-            self.model().edit_act(index, dlg.ret_value())
+        def applyfunc(name, prior, comm):
+            self.model().edit_act(index, (name, prior, comm))
+
         a = self.model().get_act(index)
-        dlg = AddEditDialog(a, applyfunc, self)
-        if (dlg.exec_()):
-            applyfunc(dlg)
+        AddEditDialog(applyfunc, a, self).exec_()
 
     def _fin_action(self, index):
         self.model().finish(index)

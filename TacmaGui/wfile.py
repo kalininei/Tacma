@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import xml.etree.ElementTree as ET
 import tacmaopt
 import bproc
+from tacmastat import TacmaStat
 
 
 class Act(object):
@@ -15,6 +16,12 @@ class Act(object):
         self.finished = None
         self.prior = [(self.created, prior)]
         self.onoff = []
+        # Piecewise representation off priority and onoff
+        # They should be actualized at each self.prior, self.onoff changes
+        # Global actualization is done by self._pw_actualize call
+        self._pw_prior = bproc.PieceWiseFun([
+            (self.created, float('inf'), prior)])
+        self._pw_onoff = bproc.PieceWiseFun()
 
     def is_on(self):
         return len(self.onoff) % 2 == 1
@@ -45,43 +52,41 @@ class Act(object):
             t1 = self.dt.curtime_to_int()
         return (t0, t1)
 
-    def prior_pw(self, t0=None, t1=None):
+    def get_prior_pw(self, t0=None, t1=None):
         """->PieceWiseFun.
-            Returns priority as piecewise function at give interval'
+            Returns priority as a piecewise function at given interval'
+            if t0, t1 = None => t0, t1 = +-Infinity
         """
-        ret = bproc.PieceWiseFun()
-        t0, t1 = self._pwintervals(t0, t1)
-        if len(self.prior) == 0:
-            return ret
-        for i, d in enumerate(self.prior[:-1]):
-            dnext = self.prior[i + 1]
-            ret.add_section(d[0], dnext[0], d[1], [t0, t1])
-        ret.add_section(self.prior[-1][0], t1, self.prior[-1][1], [t0, t1])
-        return ret
+        if t0 is None:
+            t0 = -float('inf')
+        if t1 is None:
+            t1 = float('inf')
+        return self._pw_prior.cut(t0, t1)
 
-    def work_pw(self, t0=None, t1=None):
+    def get_work_pw(self, t0=None, t1=None):
         """->PieceWiseFun.
-            Returns activity as piecewise function at given interval'
+            Returns activity as a piecewise function at given interval'
+            if t0, t1 = None => t0, t1 = +-Infinity
         """
-        ret = bproc.PieceWiseFun()
-        if len(self.prior) == 0:
-            return ret
-        t0, t1 = self._pwintervals(t0, t1)
-        it = iter(self.onoff)
-        for st, en in zip(it, it):
-            ret.add_section(st, en, 1, [t0, t1])
-        if self.is_on():
-            ret.add_section(self.onoff[-1], t1, 1, [t0, t1])
-        return ret
+        if len(self.onoff) == 0:
+            return bproc.PieceWiseFun()
+        if t0 is None:
+            t0 = -float('inf')
+        if t1 is None:
+            t1 = float('inf')
+        return self._pw_onoff.cut(t0, t1)
 
     def switch(self):
         'swithes on/off status'
         self.onoff.append(self.dt.curtime_to_int())
+        _d = 1 if self.is_on() else None
+        self._pw_onoff.add_section(self.onoff[-1], float('inf'), _d)
 
     def set_priority(self, p):
         'sets new priority'
         if self.is_alive():
             self.prior.append((self.dt.curtime_to_int(), p))
+            self._pw_prior.add_section(self.prior[-1][0], float('inf'), p)
 
     def save_to_xml(self, nd):
         d = ET.SubElement(nd, 'ACTION')
@@ -138,12 +143,35 @@ class Act(object):
         except Exception as e:
             raise Exception('Invalid action xml node: %s' % str(e))
 
+        ret._pw_actualize()
         return ret
+
+    def _pw_actualize(self):
+        # onoff
+        self._pw_onoff.clear()
+        it = iter(self.onoff)
+        for x1, x2 in zip(it, it):
+            self._pw_onoff.add_section(x1, x2, 1)
+        if self.is_on():
+            self._pw_onoff.add_section(self.onoff[-1], float('inf'), 1)
+        # priority
+        self._pw_prior.clear()
+        for x in self.prior:
+            self._pw_prior.add_section(x[0], float('inf'), x[1])
 
 
 class DataChangedEmitter(object):
-    """ Events list:
-        'ActiveTaskChanged' - iden = new active task or None
+    """
+    TacmaData emits signal on events.
+    Registered function should be of type: (str event, int iden)
+    Events and iden list:
+        'Read', iden = None. on TacmaData was read from file
+        'ActiveTaskChanged', iden = new active task or None
+        'NewTask', iden = identifier of a new task
+        'RemoveTask', iden = identifier of removed task
+        'PriorityChanged', iden = identifier task with changed prior
+        'NameChanged'
+        'CommentChanged'
     """
 
     def __init__(self):
@@ -171,9 +199,13 @@ class TacmaData(object):
         self.emitter = DataChangedEmitter()
         self.acts = []
         self.start_date = None
+        # Build statistic object before data read
+        self.stat = TacmaStat(self)
+
         try:
             self._read_data(self.fname)
-        except:
+        except Exception as e:
+            print str(e)
             #if failed to read corrupted file
             from PyQt5 import QtWidgets
             if os.path.isfile(tacmaopt.opt.backup_fn):
@@ -196,7 +228,7 @@ class TacmaData(object):
 
     def _read_data(self, fn):
         'reads data from fn if it exists or creates default data list'
-        if fn is None or not os.path.isfile(fn):
+        if fn is None:
             self.start_date = datetime.utcnow()
         else:
             root = ET.parse(fn).getroot()
@@ -212,6 +244,11 @@ class TacmaData(object):
             aa = self._gaa()
             if aa:
                 aa.onoff.append(sd)
+        try:
+            self.emitter.emit('Read')
+        except:
+            import traceback
+            traceback.print_exc()
 
     def write_data(self, fn=None):
         'saves current state to self.fname'
@@ -242,13 +279,16 @@ class TacmaData(object):
         tree.write(fn, xml_declaration=True, encoding='utf-8')
 
     def time_to_int(self, tm):
+        'calendar utc time to number of seconds since creation'
         delta = tm - self.start_date
         return delta.days * 86400 + delta.seconds
 
     def curtime_to_int(self):
+        'current utc time to number of seconds since creation'
         return self.time_to_int(datetime.utcnow())
 
     def int_to_time(self, s):
+        '-> datatime. Number of seconds to utc time'
         d = timedelta(seconds=s)
         return self.start_date + d
 
@@ -264,12 +304,14 @@ class TacmaData(object):
         pass
 
     def add_action(self, name, prior, comment=''):
+        'adds task. Returns its identifier'
         iden = self._next_iden()
         self.acts.append(Act(iden, name, prior, self))
         if comment != '':
             self.set_comment(iden, comment)
-
         self.write_data()
+        self.emitter.emit('NewTask', iden)
+        return iden
 
     def act_count(self):
         'number of actions'
@@ -280,17 +322,20 @@ class TacmaData(object):
         if a.name != newname:
             a.name = newname
             self.write_data()
+        self.emitter.emit('NameChanged', iden)
 
     def change_action_prior(self, iden, newprior):
         a = self._gai(iden)
         if a.current_priority() != newprior:
             a.set_priority(newprior)
             self.write_data()
+        self.emitter.emit('PriorityChanged', iden)
 
     def set_comment(self, iden, txt):
         if self._gai(iden).comment != txt:
             self._gai(iden).comment = txt
             self.write_data()
+        self.emitter.emit('CommentChanged', iden)
 
     def get_comment(self, iden):
         return self._gai(iden).comment
@@ -330,11 +375,11 @@ class TacmaData(object):
         else:
             return self._gai(iden).current_priority() / s
 
-    def created(self, iden):
+    def created_time(self, iden):
         '->datetime. Creation time'
         return self.int_to_time(self._gai(iden).created)
 
-    def finished(self, iden):
+    def finished_time(self, iden):
         '->datetime or None. Finish time'
         a = self._gai(iden)
         return None if a.is_alive() else self.int_to_time(a.finished)
@@ -342,6 +387,11 @@ class TacmaData(object):
     def is_on(self, iden):
         '->bool. If action (by id) is active'
         return self._gai(iden).is_on()
+
+    def active_task(self):
+        '->int. Get identifier of active task or None'
+        at = self._gaa()
+        return at.iden if at is not None else None
 
     def turn_on(self, iden):
         'Turn action (by) on. And Turn off all others'
@@ -355,7 +405,7 @@ class TacmaData(object):
         self.emitter.emit('ActiveTaskChanged', self._gaa().iden)
 
     def turn_off(self):
-        'Stop active action'
+        'Stop active task'
         aa = self._gaa()
         if aa:
             aa.switch()
@@ -363,7 +413,7 @@ class TacmaData(object):
         self.emitter.emit('ActiveTaskChanged')
 
     def finish(self, iden):
-        'Finish action'
+        'Finish task'
         a = self._gai(iden)
         if a.current_priority() != 0:
             a.set_priority(0)
@@ -373,71 +423,12 @@ class TacmaData(object):
         self.write_data()
 
     def remove(self, iden):
-        'Completely remove action'
+        'Completely remove task from all statistics'
         a = self._gai(iden)
         self.acts.remove(a)
         self.write_data()
+        self.emitter.emit('RemoveTask', iden)
 
-    def get_weights_fun(self, t0, t1):
-        """ ->{iden: PieceWiseFun}
-            Calculates weight functions for all activities
-            at given time interval
-        """
-        ftmp = [a.prior_pw(t0, t1) for a in self.acts]
-        sumfun = bproc.PieceWiseFun.func(lambda *x: sum(x), *ftmp)
-
-        ret = {}
-        for a, f in zip(self.acts, ftmp):
-            ret[a.iden] = bproc.PieceWiseFun.func(lambda x, y: x / y,
-                    f, sumfun)
-        return ret
-
-    def get_work_fun(self, t0, t1):
-        """ ->{iden: PieceWiseFun}
-            Calculates work piecewise functions for all activities
-            at given time interval
-            key = -1 returns total work
-        """
-        ret = {a.iden: a.work_pw(t0, t1) for a in self.acts}
-        ret[-1] = bproc.PieceWiseFun.func(lambda *x: 1, *ret.values())
-        return ret
-
-    def get_stat(self, iden, dur, endtm=None):
-        """(int iden, int dur, int endtm) ->
-                (int theor_time, real_time)
-           Calculate time staticstics
-           for time interval (endtm - dur, endtm).
-           If endtm=None => endtm=CurTime
-           Returns:
-            theor_time (s) - time duration which current
-               activity should last
-            real_time (s) - time duration which current
-               activity lasted in fact
-        """
-        a = self._gai(iden)
-        t1 = self.curtime_to_int() if endtm is None else endtm
-        t0 = t1 - dur
-        rt = a.dur_within(t0, t1)
-
-        pw_weights = self.get_weights_fun(t0, t1)
-        pw_works = self.get_work_fun(t0, t1)
-
-        r = bproc.PieceWiseFun.func(lambda x, y: x * y,
-                pw_weights[iden], pw_works[-1])
-        tt = r.integral()
-
-        return (tt, rt)
-
-    def get_cur_ses_time(self, iden):
-        """ Returns:
-                None for inactive tasks
-                time duration in seconds of current duration for active
-        """
-        a = self._gai(iden)
-        if a.is_on():
-            return self.curtime_to_int() - a.onoff[-1]
-        else:
-            return None
 
 if __name__ == "__main__":
     pass
