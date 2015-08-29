@@ -6,7 +6,7 @@ class ViewModel(QtCore.QAbstractTableModel):
     def __init__(self, dt):
         super(ViewModel, self).__init__()
         self.dt = dt
-        dt.emitter.current_activity_changed.connect(self._act_changed)
+        dt.emitter.subscribe(self, self._tacma_data_changed)
 
     #table columns names and order
     cnames = {'status': (0, ''),
@@ -18,7 +18,9 @@ class ViewModel(QtCore.QAbstractTableModel):
                 'finished': (6, 'Finished'),
                 'l24h': (7, 'Last 24h'),
                 'l1w': (8, 'Last week'),
-                'l4w': (9, 'Last 4 weeks')}
+                'l4w': (9, 'Last 4 weeks'),
+                'lses': (10, 'Last session')
+              }
 
     def rowCount(self, parent=None):
         "overriden"
@@ -62,6 +64,8 @@ class ViewModel(QtCore.QAbstractTableModel):
                 return self.dt.get_stat(iden, 604800)
             elif index.column() == self.cnames['l4w'][0]:
                 return self.dt.get_stat(iden, 2419200)
+            elif index.column() == self.cnames['lses'][0]:
+                return self.dt.get_cur_ses_time(iden)
         elif role == QtCore.Qt.CheckStateRole:
             iden = self.get_iden(index)
             if index.column() == self.cnames['status'][0]:
@@ -121,21 +125,23 @@ class ViewModel(QtCore.QAbstractTableModel):
         '->int. Get id by table index'
         return self.get_act(index).iden
 
-    def view_update(self):
+    def timer_view_update(self):
         'update columns which change through time'
         self.update_column('l24h')
         self.update_column('l1w')
         self.update_column('l4w')
+        self.update_column('lses')
 
     def update_column(self, ccode):
         'update column by its ccname'
         col = self.cnames[ccode][0]
         i0 = self.createIndex(0, col)
-        i1 = self.createIndex(self.rowCount(), col)
+        i1 = self.createIndex(self.rowCount()-1, col)
         self.dataChanged.emit(i0, i1)
 
-    def _act_changed(self, iden):
-        self.update_column('status')
+    def _tacma_data_changed(self, event, iden):
+        if event == 'ActiveTaskChanged':
+            self.update_column('status')
 
 
 class TableDelegate(QtWidgets.QItemDelegate):
@@ -164,6 +170,16 @@ class TableDelegate(QtWidgets.QItemDelegate):
             p = int(d[1] / d[0] * 100) if d[0] != 0 else 0
             txt = '%i:%02i:%02i / %i %%' % (h, m, s, p)
             self.drawDisplay(painter, option, rect, txt)
+        elif index.column() in [ViewModel.cnames['lses'][0]]:
+            # write time intervals
+            d = index.data()
+            if d is not None:
+                rect = QtCore.QRect(option.rect)
+                h = int(d / 3600)
+                m = int((d - h * 3600) / 60)
+                s = int(d - h * 3600 - 60 * m)
+                txt = '%i:%02i:%02i' % (h, m, s)
+                self.drawDisplay(painter, option, rect, txt)
         else:
             super(TableDelegate, self).paint(painter, option, index)
 
@@ -246,7 +262,7 @@ class MainWindowTable(QtWidgets.QTableView):
 
         #autoupdate table
         self.view_update = QtCore.QTimer(self)
-        self.view_update.timeout.connect(self._upd)
+        self.view_update.timeout.connect(self.model().timer_view_update)
         self.view_update.start(tacmaopt.opt.update_interval * 1000)
 
     def _context_menu(self, pnt):
@@ -254,15 +270,15 @@ class MainWindowTable(QtWidgets.QTableView):
         index = self.indexAt(pnt)
 
         menu = QtWidgets.QMenu(self)
-        #Add
-        act = QtWidgets.QAction("Add", self)
-        act.triggered.connect(self._add_action)
-        menu.addAction(act)
         #Edit
         act = QtWidgets.QAction("Edit", self)
         act.setEnabled(index.isValid())
         act.triggered.connect(
                 functools.partial(self._edit_action, index))
+        menu.addAction(act)
+        #Add
+        act = QtWidgets.QAction("Add", self)
+        act.triggered.connect(self._add_action)
         menu.addAction(act)
         #Finish
         act = QtWidgets.QAction("Finish", self)
@@ -300,8 +316,5 @@ class MainWindowTable(QtWidgets.QTableView):
 
     def _rem_action(self, index):
         self.model().remove(index)
-
-    def _upd(self):
-        self.model().view_update()
 
 

@@ -82,7 +82,7 @@ class TrayIcon(QtWidgets.QSystemTrayIcon):
                 QtWidgets.qApp)
         self.win = mw
         self.data = mw.data
-        self.win.emitter.current_activity_changed.connect(self._act_changed)
+        self.data.emitter.subscribe(self, self._tacma_data_changed)
         self.setupUI()
 
     def setupUI(self):
@@ -101,11 +101,12 @@ class TrayIcon(QtWidgets.QSystemTrayIcon):
             else:
                 self.win.setHidden(True)
 
-    def _act_changed(self, iden):
-        if iden == -1:
-            self.setIcon(bproc.get_icon('icon-stop'))
-            self.setToolTip('')
-        else:
-            self.setIcon(bproc.get_icon('icon-run'))
-            self.setToolTip('%s' % self.data._gai(iden).name)
-        self.menu.refresh_checkboxes()
+    def _tacma_data_changed(self, event, iden):
+        if event == 'ActiveTaskChanged':
+            if iden is None:
+                self.setIcon(bproc.get_icon('icon-stop'))
+                self.setToolTip('')
+            else:
+                self.setIcon(bproc.get_icon('icon-run'))
+                self.setToolTip('%s' % self.data._gai(iden).name)
+            self.menu.refresh_checkboxes()

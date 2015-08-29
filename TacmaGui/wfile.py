@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 import xml.etree.ElementTree as ET
 import tacmaopt
 import bproc
-from PyQt5 import QtCore
 
 
 class Act(object):
@@ -142,15 +141,34 @@ class Act(object):
         return ret
 
 
+class DataChangedEmitter(object):
+    """ Events list:
+        'ActiveTaskChanged' - iden = new active task or None
+    """
+
+    def __init__(self):
+        # object -> function
+        self.receivers = {}
+
+    def subscribe(self, obj, func):
+        self.receivers[obj] = func
+
+    def unsubscribe(self, obj):
+        self.receivers.pop(obj)
+
+    def emit(self, event, iden=None):
+        for f in self.receivers.values():
+            f(event, iden)
+
+
 class TacmaData(object):
 
-    def __init__(self, fname, emitter):
+    def __init__(self, fname):
         """ fname - data location
-            emitter - MainWindow.DataInfoTracker
         """
         print 'Reading data from %s' % os.path.abspath(fname)
         self.fname = fname
-        self.emitter = emitter
+        self.emitter = DataChangedEmitter()
         self.acts = []
         self.start_date = None
         try:
@@ -334,7 +352,7 @@ class TacmaData(object):
             aa.switch()
         self._gai(iden).switch()
         self.write_data()
-        self.emitter.current_activity_changed.emit(self._gaa().iden)
+        self.emitter.emit('ActiveTaskChanged', self._gaa().iden)
 
     def turn_off(self):
         'Stop active action'
@@ -342,7 +360,7 @@ class TacmaData(object):
         if aa:
             aa.switch()
         self.write_data()
-        self.emitter.current_activity_changed.emit(-1)
+        self.emitter.emit('ActiveTaskChanged')
 
     def finish(self, iden):
         'Finish action'
@@ -409,6 +427,17 @@ class TacmaData(object):
         tt = r.integral()
 
         return (tt, rt)
+
+    def get_cur_ses_time(self, iden):
+        """ Returns:
+                None for inactive tasks
+                time duration in seconds of current duration for active
+        """
+        a = self._gai(iden)
+        if a.is_on():
+            return self.curtime_to_int() - a.onoff[-1]
+        else:
+            return None
 
 if __name__ == "__main__":
     pass

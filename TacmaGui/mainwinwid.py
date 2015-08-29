@@ -8,19 +8,10 @@ from traywid import TrayIcon
 
 class MainWindow(QtWidgets.QMainWindow):
     "application main window"
-    class DataInfoEmitter(QtCore.QObject):
-        """ signal emitted when active task changes.
-            int - new active task id or -1 if all stopped.
-        """
-        current_activity_changed = QtCore.pyqtSignal(int)
-
-        def __init__(self):
-            super(MainWindow.DataInfoEmitter, self).__init__()
 
     def __init__(self, fn):
         super(MainWindow, self).__init__()
-        self.emitter = MainWindow.DataInfoEmitter()
-        self.data = TacmaData(fn, self.emitter)
+        self.data = TacmaData(fn)
         self.setUi()
         # -- tray icon
         self.ticon = TrayIcon(self)
@@ -40,8 +31,8 @@ class MainWindow(QtWidgets.QMainWindow):
         atexit.register(tacmaopt.opt.write)
 
     def setUi(self):
+        'initialize widgets'
         self.setWindowTitle(tacmaopt.opt.title())
-        #self.setWindowIcon(QtGui.QIcon('misc/mainwin.png'))
         self.setWindowIcon(bproc.get_icon('tacma'))
         self.resize(tacmaopt.opt.Hx, tacmaopt.opt.Hy)
         self.move(tacmaopt.opt.x0, tacmaopt.opt.y0)
@@ -59,16 +50,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(self.tab)
 
     def resizeEvent(self, event):
+        'write window size on options file'
         super(MainWindow, self).resizeEvent(event)
         tacmaopt.opt.Hx = self.size().width()
         tacmaopt.opt.Hy = self.size().height()
 
     def moveEvent(self, event):
+        'write window position on options file'
         super(MainWindow, self).moveEvent(event)
         tacmaopt.opt.x0 = self.x()
         tacmaopt.opt.y0 = self.y()
 
     def event(self, event):
+        'hide on minimization and close'
         if event.type() == QtCore.QEvent.WindowStateChange:
             if self.isMinimized():
                 self.setHidden(True)
@@ -78,7 +72,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.setHidden(True)
             event.ignore()
             return True
-        return False
+        return super(MainWindow, self).event(event)
 
     def _autosave(self):
         'save to opt.autosave'
