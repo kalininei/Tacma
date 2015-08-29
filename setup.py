@@ -75,7 +75,7 @@ setup(
     version=config.version,
     packages=['TacmaGui'],
     entry_points={
-        'console_scripts': ['%s = TacmaGui.tacma:main' % config.progname]},
+        'gui_scripts': ['%s = TacmaGui.tacma:main' % config.progname]},
 
     package_data={
             'TacmaGui': ['misc/*.png']
@@ -92,4 +92,32 @@ setup(
 # delete config.py from TacmaGui dir
 import os
 os.remove('TacmaGui/config.py')
+
+# create executable manually since
+#
+#   entry_points={
+#    'gui_scripts': ['%s = TacmaGui.tacma:main' % config.progname]},
+#
+# doesn't invoke QApplication creation which should be place in
+# if __name__ == '__main__': section
+# Placing it in main() leads to application crush at exit
+# and it prevents calls of on_exit procedures
+
+import config
+txt = """#!/usr/bin/python
+__requires__ = 'Tacma==%s'
+import sys
+from pkg_resources import load_entry_point
+
+if __name__ == '__main__':
+    from PyQt5 import QtWidgets
+    app = QtWidgets.QApplication(sys.argv)
+    sys.exit(
+        load_entry_point('Tacma==0.2', 'gui_scripts', 'Tacma')()
+    )
+""" % config.version
+f = open('/usr/bin/%s' % config.progname, 'w')
+f.write(txt)
+f.close()
+
 # ----

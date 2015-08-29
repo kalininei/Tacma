@@ -28,7 +28,7 @@ def main():
     mw.show()
 
     # start gui loop
-    sys.exit(app.exec_())
+    sys.exit(QtWidgets.qApp.exec_())
 
 if __name__ == '__main__':
     # initialize qt application here to prevent
