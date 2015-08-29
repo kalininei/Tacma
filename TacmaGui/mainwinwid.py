@@ -63,12 +63,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def event(self, event):
         'hide on minimization and close'
-        if event.type() == QtCore.QEvent.WindowStateChange:
-            if self.isMinimized():
-                self.setHidden(True)
-                event.ignore()
-                return True
-        elif event.type() == QtCore.QEvent.Close:
+        if event.type() == QtCore.QEvent.Close:
             self.setHidden(True)
             event.ignore()
             return True
