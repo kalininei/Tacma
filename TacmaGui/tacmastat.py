@@ -92,8 +92,8 @@ class TacmaStat(object):
         sumfun = bproc.PieceWiseFun.func(lambda *x: sum(x), *ftmp)
         # Normalize priorities to get weights
         for a, f in zip(d.acts, ftmp):
-            self._weights[a.iden] = bproc.PieceWiseFun.func(lambda x, y: x / y,
-                    f, sumfun)
+            self._weights[a.iden] = bproc.PieceWiseFun.func(
+                lambda x, y: x / y, f, sumfun)
 
         # 2. total working activity
         # activity for each task
@@ -104,12 +104,5 @@ class TacmaStat(object):
 
         # 3. working portion = weights * working_activity
         self._working_portion = {a.iden: bproc.PieceWiseFun.func(
-                lambda x, y: x * y,
-                self._weights[a.iden], self._working_activity)
+            lambda x, y: x * y, self._weights[a.iden], self._working_activity)
             for a in d.acts}
-
-
-
-
-
-

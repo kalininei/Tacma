@@ -4,6 +4,7 @@ import xml.etree.ElementTree as ET
 import tacmaopt
 import bproc
 from tacmastat import TacmaStat
+import copy
 
 
 class Act(object):
@@ -159,6 +160,55 @@ class Act(object):
         for x in self.prior:
             self._pw_prior.add_section(x[0], float('inf'), x[1])
 
+    def _cutonoff(self, tm):
+        ionoff = 0
+        while ionoff < len(self.onoff) and self.onoff[ionoff] < tm:
+            ionoff += 1
+        if ionoff % 2 == 1:
+            self.onoff.insert(ionoff, tm)
+            self.onoff.insert(ionoff, tm)
+            ionoff += 1
+        return ionoff
+
+    def _cutprior(self, tm):
+        ipri = 0
+        while ipri < len(self.prior) and self.prior[ipri][0] < tm:
+            ipri += 1
+        if ipri < len(self.prior) and self.prior[ipri][0] == tm:
+            return ipri
+        if ipri > 0:
+            self.prior.insert(ipri, copy.deepcopy(self.prior[ipri - 1]))
+        return ipri
+
+    def delete_before(self, tm):
+        # onoff
+        self.onoff = self.onoff[self._cutonoff(tm):]
+        # priority
+        self.prior = self.prior[self._cutprior(tm):]
+        self._pw_actualize()
+
+    def delete_after(self, tm):
+        if self.created >= tm:
+            self.onoff = []
+            self.prior = []
+            return False
+        if self.finished is not None and self.finished >= tm:
+            self.finished = None
+        # onoff
+        self.onoff = self.onoff[:self._cutonoff(tm)]
+        # priority
+        self.prior = self.prior[:self._cutprior(tm)]
+        self._pw_actualize()
+        return True
+
+    def shift_time(self, delta):
+        self.onoff = [x + delta for x in self.onoff]
+        self.prior = [(max(0, x[0] + delta), x[1]) for x in self.prior]
+        self.created += delta
+        if self.finished is not None:
+            self.finished += delta
+        self._pw_actualize()
+
 
 class DataChangedEmitter(object):
     """
@@ -190,7 +240,6 @@ class DataChangedEmitter(object):
 
 
 class TacmaData(object):
-
     def __init__(self, fname):
         """ fname - data location
         """
@@ -199,6 +248,7 @@ class TacmaData(object):
         self.emitter = DataChangedEmitter()
         self.acts = []
         self.start_date = None
+        self.previous_fn = None  # previous data file
         # Build statistic object before data read
         self.stat = TacmaStat(self)
 
@@ -219,8 +269,9 @@ class TacmaData(object):
                     pass
             txt = "Data is corrupted and no backup was found."
             txt += "\nStart blank session?"
-            a = QtWidgets.QMessageBox.question(None, "Tacma Error",
-                    txt, QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+            a = QtWidgets.QMessageBox.question(
+                None, "Tacma Error",
+                txt, QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
             if a == QtWidgets.QMessageBox.No:
                 quit()
             else:
@@ -236,9 +287,14 @@ class TacmaData(object):
             a = ['YEAR', 'MONTH', 'DAY', 'HOUR', 'MIN', 'SEC']
             a = map(lambda x: int(root.find('START_DATE/%s' % x).text), a)
             self.start_date = datetime(*a)
+            # read previous archive
+            try:
+                self.previous_fn = root.find("PREV_DATA").text
+            except:
+                pass
             # read actions
             self.acts = map(lambda x: Act.read_from_xml(x, self),
-                    root.findall('ACTIONS/ACTION'))
+                            root.findall('ACTIONS/ACTION'))
             # turn off active action
             sd = int(root.find('SAVE_TIME').text)
             aa = self._gaa()
@@ -250,7 +306,38 @@ class TacmaData(object):
             import traceback
             traceback.print_exc()
 
+    def archivate_if_needed(self, curtime):
+        # if no need for achivating return
+        if curtime < tacmaopt.opt.archivate * 7 * 24 * 60 * 60:
+            return curtime
+        # start archivation
+        afn = tacmaopt.opt.new_archive_filename()
+        print "Archivating to ", afn
+        # stop active task
+        atask = self._gaa()
+        if atask is not None:
+            atask.switch()
+        # calculate time interval which will be left
+        delta = tacmaopt.opt.minactual * 7 * 24 * 60 * 60
+        # create archive copy
+        ac = copy.deepcopy(self)
+        ac.delete_after(curtime - delta)
+        for a in ac.acts:
+            a.comment = ''
+        ac.write_data(afn)
+        # modify self
+        self.delete_before(curtime - delta)
+        self.previous_fn = afn
+        # turn on active process
+        if atask is not None:
+            atask.switch()
+        return delta
+
     def write_data(self, fn=None):
+        tm = self.time_to_int(datetime.utcnow())
+        # check for archivation only in regular saves
+        if fn is None:
+            tm = self.archivate_if_needed(tm)
         'saves current state to self.fname'
         root = ET.Element('TacmaData')
         root.attrib['version'] = tacmaopt.opt.ver
@@ -262,9 +349,11 @@ class TacmaData(object):
         ET.SubElement(d, 'HOUR').text = str(self.start_date.hour)
         ET.SubElement(d, 'MIN').text = str(self.start_date.minute)
         ET.SubElement(d, 'SEC').text = str(self.start_date.second)
+        #previous data
+        if self.previous_fn is not None:
+            ET.SubElement(root, 'PREV_DATA').text = self.previous_fn
         #save date
-        ET.SubElement(root, 'SAVE_TIME').text = \
-                str(self.time_to_int(datetime.utcnow()))
+        ET.SubElement(root, 'SAVE_TIME').text = str(tm)
 
         #actions
         d = ET.SubElement(root, 'ACTIONS')
@@ -322,20 +411,20 @@ class TacmaData(object):
         if a.name != newname:
             a.name = newname
             self.write_data()
-        self.emitter.emit('NameChanged', iden)
+            self.emitter.emit('NameChanged', iden)
 
     def change_action_prior(self, iden, newprior):
         a = self._gai(iden)
         if a.current_priority() != newprior:
             a.set_priority(newprior)
             self.write_data()
-        self.emitter.emit('PriorityChanged', iden)
+            self.emitter.emit('PriorityChanged', iden)
 
     def set_comment(self, iden, txt):
         if self._gai(iden).comment != txt:
             self._gai(iden).comment = txt
             self.write_data()
-        self.emitter.emit('CommentChanged', iden)
+            self.emitter.emit('CommentChanged', iden)
 
     def get_comment(self, iden):
         return self._gai(iden).comment
@@ -428,6 +517,31 @@ class TacmaData(object):
         self.acts.remove(a)
         self.write_data()
         self.emitter.emit('RemoveTask', iden)
+
+    def delete_before(self, tm):
+        """ deletes all data before tm
+        """
+        # acts
+        for a in self.acts:
+            a.delete_before(tm)
+            a.shift_time(-tm)
+        # curtime
+        self.start_date = self.int_to_time(tm)
+        # reset stat
+        self.stat._aux_reset()
+
+    def delete_after(self, tm):
+        """ deletes all data after tm
+        """
+        rmtasks = []
+        for a in self.acts:
+            need = a.delete_after(tm)
+            if not need:
+                rmtasks.append(a)
+        for r in rmtasks:
+            self.acts.remove(r)
+        # reset stat
+        self.stat._aux_reset()
 
 
 if __name__ == "__main__":

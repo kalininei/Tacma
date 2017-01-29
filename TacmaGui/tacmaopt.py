@@ -23,6 +23,10 @@ class ProgOptions(object):
         self.backup_autosave = 20
         #update window each %s seconds
         self.update_interval = 2
+        #archivate actual data when it exceed %s weeks
+        self.archivate = 20
+        #minimum number of weeks in actual file
+        self.minactual = 5
 
     def title(self):
         return 'Tacma v.' + self.ver
@@ -35,6 +39,17 @@ class ProgOptions(object):
         self.opt_fn = self._towd(os.path.basename(self.opt_fn))
         self.wfile = self._towd(os.path.basename(self.wfile))
         self.backup_fn = self._towd(os.path.basename(self.backup_fn))
+
+    def new_archive_filename(self):
+        index = 1
+        stem = "archiveData"
+        while 1:
+            fn = stem + str(index) + ".xml"
+            fn = self._towd(fn)
+            if not os.path.isfile(fn):
+                return fn
+            else:
+                index += 1
 
     def write(self):
         'writes options to default file'
@@ -52,6 +67,8 @@ class ProgOptions(object):
         ET.SubElement(w, 'X0').text = str(self.x0)
         ET.SubElement(w, 'Y0').text = str(self.y0)
         ET.SubElement(root, 'UPDATE_INT').text = str(self.update_interval)
+        ET.SubElement(root, 'ARCHIVATE').text = str(self.archivate)
+        ET.SubElement(root, 'MINACTUAL').text = str(self.minactual)
 
         bproc.xmlindent(root)
         tree = ET.ElementTree(root)
@@ -82,6 +99,14 @@ class ProgOptions(object):
         except:
             pass
         try:
+            self.archivate = int(root.find("ARCHIVATE").text)
+        except:
+            pass
+        try:
+            self.minactual = int(root.find("MINACTUAL").text)
+        except:
+            pass
+        try:
             self.Hx = int(root.find('MAIN_WINDOW/HX').text)
             self.Hy = int(root.find('MAIN_WINDOW/HY').text)
             self.x0 = int(root.find('MAIN_WINDOW/X0').text)
@@ -94,4 +119,3 @@ class ProgOptions(object):
             pass
 
 opt = ProgOptions()
-

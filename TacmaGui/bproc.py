@@ -16,12 +16,12 @@ def get_icon(s):
     global _icon_set
     if len(_icon_set) == 0:
         _icon_set = {
-                "tacma":
-                QtGui.QIcon(QtGui.QPixmap(resfile('misc/mainwin.png'))),
-                "icon-run":
-                QtGui.QIcon(QtGui.QPixmap(resfile('misc/icon_run.png'))),
-                "icon-stop":
-                QtGui.QIcon(QtGui.QPixmap(resfile('misc/icon_stop.png'))),
+            "tacma":
+            QtGui.QIcon(QtGui.QPixmap(resfile('misc/mainwin.png'))),
+            "icon-run":
+            QtGui.QIcon(QtGui.QPixmap(resfile('misc/icon_run.png'))),
+            "icon-stop":
+            QtGui.QIcon(QtGui.QPixmap(resfile('misc/icon_stop.png'))),
         }
     return _icon_set[s]
 
@@ -55,7 +55,7 @@ class PieceWiseFun(object):
         """
         self._dt = []
         if dt is not None:
-            for d in dt:
+            for d in sorted(dt, key=lambda x: x[0]):
                 self.add_section(d[0], d[1], d[2], boundto)
 
     def add_section(self, tstart, tend, value, boundto=None):
@@ -69,24 +69,66 @@ class PieceWiseFun(object):
             tend = min(tend, boundto[1])
         if tend <= tstart:
             return
+        if len(self._dt) == 0 or tstart >= self._dt[-1][1]:
+            if value is not None:
+                self._dt.append((tstart, tend, value))
+            return
+        if tend <= self._dt[0][0]:
+            if value is not None:
+                self._dt.insert(0, (tstart, tend, value))
+            return
+
+        # end before tstart
+        ib = 0
+        while ib < len(self._dt):
+            if self._dt[ib][1] > tstart:
+                break
+            ib += 1
+        newdt = self._dt[:ib]
+
+        # start before tstart
+        if ib < len(self._dt) and self._dt[ib][0] < tstart:
+            newdt.append((self._dt[ib][0], tstart, self._dt[ib][2]))
+
+        # add value
         if value is not None:
-            newdt = [(tstart, tend, value)]
-        else:
-            newdt = []
-        for d in self._dt[:]:
-            if d[0] >= tend or d[1] <= tstart:
-                newdt.append(d)
-            elif d[0] < tstart < d[1] and d[1] < tend < d[1]:
-                newdt.append((d[0], tstart, d[2]))
-                newdt.append((tend, d[1], d[2]))
-            elif d[0] >= tstart and d[1] <= tend:
-                continue
-            elif d[0] < tend < d[1]:
-                newdt.append((tend, d[1], d[2]))
-            elif d[0] < tstart < d[1]:
-                newdt.append((d[0], tstart, d[2]))
-        newdt.sort(key=lambda x: x[0])
+            newdt.append((tstart, tend, value))
+
+        # end after tend
+        newdt.append(None)
+        while ib < len(self._dt):
+            if self._dt[ib][0] < tend:
+                if self._dt[ib][1] > tend:
+                    newdt[-1] = (tend, self._dt[ib][1], self._dt[ib][2])
+                ib += 1
+            else:
+                break
+        if newdt[-1] is None:
+            newdt.pop()
+
+        # start after tend
+        newdt.extend(self._dt[ib:])
         self._dt = newdt
+        self._dt.sort(key=lambda x: x[0])
+
+        # if value is not None:
+        #     newdt = [(tstart, tend, value)]
+        # else:
+        #     newdt = []
+        # for d in self._dt:
+        #     if d[0] >= tend or d[1] <= tstart:
+        #         newdt.append(d)
+        #     elif d[0] < tstart < d[1] and d[1] < tend < d[1]:
+        #         newdt.append((d[0], tstart, d[2]))
+        #         newdt.append((tend, d[1], d[2]))
+        #     elif d[0] >= tstart and d[1] <= tend:
+        #         continue
+        #     elif d[0] < tend < d[1]:
+        #         newdt.append((tend, d[1], d[2]))
+        #     elif d[0] < tstart < d[1]:
+        #         newdt.append((d[0], tstart, d[2]))
+        # newdt.sort(key=lambda x: x[0])
+        # self._dt = newdt
 
     def clear(self):
         " removes all information "
@@ -233,9 +275,8 @@ class PieceWiseFun(object):
 
 if __name__ == "__main__":
     A = float('inf')
-    f1 = PieceWiseFun([(285, 341, 1), (341, A, 0.25)])
-    sumfun = PieceWiseFun.func(lambda *x: sum(x), f1)
-    [sumfun] = PieceWiseFun._same_stencil([f1])
+    f1 = PieceWiseFun([(285, 341, 1), (342, A, 15)])
+    f1.add_section(300.05, 400, 13)
+    f1.add_section(300.05, 400, 0)
 
     print f1
-    print sumfun

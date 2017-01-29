@@ -30,7 +30,7 @@ class MainWindow(QtWidgets.QMainWindow):
         atexit.register(self._autosave)
         atexit.register(tacmaopt.opt.write)
 
-    def setUi(self):
+    def setUi(self):  # NOQA
         'initialize widgets'
         self.setWindowTitle(tacmaopt.opt.title())
         self.setWindowIcon(bproc.get_icon('tacma'))
@@ -49,13 +49,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tab = MainWindowTable(self.data, self)
         self.setCentralWidget(self.tab)
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, event):  # NOQA
         'write window size on options file'
         super(MainWindow, self).resizeEvent(event)
         tacmaopt.opt.Hx = self.size().width()
         tacmaopt.opt.Hy = self.size().height()
 
-    def moveEvent(self, event):
+    def moveEvent(self, event):  # NOQA
         'write window position on options file'
         super(MainWindow, self).moveEvent(event)
         tacmaopt.opt.x0 = self.x()
