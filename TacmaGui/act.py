@@ -13,6 +13,7 @@ class Act(object):
         self.finished = None
         self.prior = [(self.created, prior)]
         self.onoff = []
+        self.archived_stop = self.created
         # Piecewise representation off priority and onoff
         # They should be actualized at each self.prior, self.onoff changes
         # Global actualization is done by self._pw_actualize call
@@ -91,6 +92,7 @@ class Act(object):
         d.attrib['id'] = str(self.iden)
         #ON/OFF
         ET.SubElement(d, 'ONOFF').text = ' '.join(map(str, self.onoff))
+
         #PRIORITY
         a = []
         for i in self.prior:
@@ -101,6 +103,7 @@ class Act(object):
         ET.SubElement(d, 'CREATED').text = str(self.created)
         if self.finished:
             ET.SubElement(d, 'FINISHED').text = str(self.finished)
+        ET.SubElement(d, 'ARCHIVED_STOP').text = str(self.archived_stop)
 
         #COMMENT
         ET.SubElement(d, 'COMMENT').text = self.comment
@@ -122,6 +125,11 @@ class Act(object):
             fnd = nd.find('FINISHED')
             if fnd is not None:
                 ret.finished = int(fnd.text)
+            try:
+                fnd = nd.find('ARCHIVED_STOP')
+                ret.archived_stop = int(fnd.text)
+            except:
+                ret.archived_stop = ret.created
             #onoff
             fnd = nd.find('ONOFF').text
             if fnd:
@@ -142,6 +150,22 @@ class Act(object):
 
         ret._pw_actualize()
         return ret
+
+    def last_stop(self):
+        """ Returnss ending time of last
+            session lasting more than 5 minutes if inactive.
+            None otherwise
+        """
+        if self.is_on():
+            return None
+        for i, tm in enumerate(reversed(self.onoff)):
+            if i % 2 == 0:
+                last_end = tm
+                continue
+            dur = last_end - tm
+            if dur > 300:
+                return last_end
+        return self.archived_stop
 
     def _pw_actualize(self):
         # onoff
@@ -201,6 +225,7 @@ class Act(object):
         self.onoff = [x + delta for x in self.onoff]
         self.prior = [(max(0, x[0] + delta), x[1]) for x in self.prior]
         self.created += delta
+        self.archived_stop += delta
         if self.finished is not None:
             self.finished += delta
         self._pw_actualize()

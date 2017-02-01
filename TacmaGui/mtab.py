@@ -27,9 +27,77 @@ class ViewModel(QtCore.QAbstractTableModel):
               'idle': (11, 'Idle'),
               }
 
+    @classmethod
+    def _is_column(cls, index, *args):
+        for a in args:
+            if index.column() == cls.cnames[a][0]:
+                return True
+        return False
+
+    def _act_data(self, index, role):
+        if role == QtCore.Qt.DisplayRole:
+            iden = self.get_iden(index)
+            if self._is_column(index, 'id'):
+                return iden
+            elif self._is_column(index, 'title'):
+                return self.dt.name(iden)
+            elif self._is_column(index, 'prior'):
+                return self.dt.priority(iden)
+            elif self._is_column(index, 'weight'):
+                return self.dt.weight(iden)
+            elif self._is_column(index, 'created'):
+                return self.dt.created_time(iden)
+            elif self._is_column(index, 'finished'):
+                return self.dt.finished_time(iden)
+            elif self._is_column(index, 'l24h'):
+                return self.dt.stat.real_time(iden, 86400)
+            elif self._is_column(index, 'l1w'):
+                return (self.dt.stat.must_time(iden, 604800),
+                        self.dt.stat.real_time(iden, 604800))
+            elif self._is_column(index, 'l4w'):
+                return (self.dt.stat.must_time(iden, 2419200),
+                        self.dt.stat.real_time(iden, 2419200))
+            elif self._is_column(index, 'lses'):
+                return self.dt.stat.last_session(iden)
+            elif self._is_column(index, 'idle'):
+                curtm = self.dt.curtime_to_int()
+                ls = self.get_act(index).last_stop()
+                if ls is not None:
+                    return curtm - ls
+                else:
+                    return None
+        elif role == QtCore.Qt.CheckStateRole:
+            iden = self.get_iden(index)
+            if self._is_column(index, 'status'):
+                return QtCore.Qt.Checked if self.dt.is_on(iden) \
+                    else QtCore.Qt.Unchecked
+
+    def _tot_data(self, index, role):
+        if role == QtCore.Qt.DisplayRole:
+            if self._is_column(
+                    index, 'id', 'prior', 'weight',
+                    'created', 'finished', 'lses'):
+                return None
+            elif self._is_column(index, 'title'):
+                return "TOTAL"
+            elif self._is_column(index, 'l24h'):
+                return int(self.dt.stat.total_working_time(86400))
+            elif self._is_column(index, 'l1w'):
+                return int(self.dt.stat.total_working_time(604800))
+            elif self._is_column(index, 'l4w'):
+                return int(self.dt.stat.total_working_time(2419200))
+            elif self._is_column(index, 'idle'):
+                if self.dt.active_task() is not None:
+                    return None
+                ad = []
+                for i in range(self.dt.act_count()):
+                    aind = self.index(i, index.column())
+                    ad.append(self._act_data(aind, role))
+                return min(ad)
+
     def rowCount(self, parent=None):  # NOQA
         "overriden"
-        return self.dt.act_count()
+        return 0 if self.dt.act_count() == 0 else self.dt.act_count() + 1
 
     def columnCount(self, parent=None):  # NOQA
         "overriden"
@@ -49,38 +117,11 @@ class ViewModel(QtCore.QAbstractTableModel):
         "overriden"
         if not index.isValid():
             return None
-        if role == QtCore.Qt.DisplayRole:
-            iden = self.get_iden(index)
-            if index.column() == self.cnames['id'][0]:
-                return iden
-            elif index.column() == self.cnames['title'][0]:
-                return self.dt.name(iden)
-            elif index.column() == self.cnames['prior'][0]:
-                return self.dt.priority(iden)
-            elif index.column() == self.cnames['weight'][0]:
-                return str(round(self.dt.weight(iden) * 100)) + ' %'
-            elif index.column() == self.cnames['created'][0]:
-                return self.dt.created_time(iden)
-            elif index.column() == self.cnames['finished'][0]:
-                return self.dt.finished_time(iden)
-            elif index.column() == self.cnames['l24h'][0]:
-                return (self.dt.stat.must_time(iden, 86400),
-                        self.dt.stat.real_time(iden, 86400))
-            elif index.column() == self.cnames['l1w'][0]:
-                return (self.dt.stat.must_time(iden, 604800),
-                        self.dt.stat.real_time(iden, 604800))
-            elif index.column() == self.cnames['l4w'][0]:
-                return (self.dt.stat.must_time(iden, 2419200),
-                        self.dt.stat.real_time(iden, 2419200))
-            elif index.column() == self.cnames['lses'][0]:
-                return self.dt.stat.last_session(iden)
-            elif index.column() == self.cnames['idle'][0]:
-                return self.dt.stat.idle_since(iden)
-        elif role == QtCore.Qt.CheckStateRole:
-            iden = self.get_iden(index)
-            if index.column() == self.cnames['status'][0]:
-                return QtCore.Qt.Checked if self.dt.is_on(iden) \
-                    else QtCore.Qt.Unchecked
+        if index.row() < self.dt.act_count():
+            return self._act_data(index, role)
+        elif index.row() == self.dt.act_count():
+            return self._tot_data(index, role)
+
         return None
 
     def setData(self, index, value, role):  # NOQA
@@ -98,7 +139,8 @@ class ViewModel(QtCore.QAbstractTableModel):
     def flags(self, index):
         "overriden"
         ret = QtCore.Qt.NoItemFlags | QtCore.Qt.ItemIsEnabled
-        if (index.column() == 0):
+        if index.row() < self.dt.act_count() and\
+                self._is_column(index, 'status'):
             ret |= QtCore.Qt.ItemIsUserCheckable
         return ret
 
@@ -137,11 +179,18 @@ class ViewModel(QtCore.QAbstractTableModel):
 
     def get_act(self, index):
         '->Act. Get action by table index'
-        return self.dt.acts[index.row()]
+        if index.isValid() and index.row() < len(self.dt.acts):
+            return self.dt.acts[index.row()]
+        else:
+            None
 
     def get_iden(self, index):
         '->int. Get id by table index'
-        return self.get_act(index).iden
+        a = self.get_act(index)
+        if a is not None:
+            return self.get_act(index).iden
+        else:
+            return None
 
     def timer_view_update(self):
         'update columns which change through time'
@@ -191,35 +240,47 @@ class TableDelegate(QtWidgets.QItemDelegate):
     def paint(self, painter, option, index):
         if not index.isValid():
             return
-        if (index.column() in [ViewModel.cnames[i][0]
-                               for i in ['created', 'finished']]):
+        if index.row() >= self.dt.act_count():
+            option.font.setBold(True)
+        # if ViewModel._is_column(index, 'idle'):
+        #     option.displayAlignment = QtCore.Qt.AlignRight
+        if ViewModel._is_column(index, 'created', 'finished'):
             d = index.data()
+            if d is None:
+                return
             #write date
             rect = QtCore.QRect(option.rect)
-            self.drawDisplay(painter, option, rect, d.strftime('%Y-%m-%d'))
-        elif (index.column() in [ViewModel.cnames[i][0]
-                                 for i in ['l24h', 'l1w', 'l4w']]):
+            self.drawDisplay(painter, option, rect, d.strftime('%Y/%m/%d'))
+            return
+        if ViewModel._is_column(index, 'l1w', 'l4w'):
             d = index.data()
-            #write statistics
+            if d is None:
+                return
             rect = QtCore.QRect(option.rect)
-            h = int(d[1] / 3600)
-            m = int((d[1] - h * 3600) / 60)
-            s = int(d[1] - h * 3600 - 60 * m)
-            p = int(d[1] / d[0] * 100) if d[0] != 0 else 0
-            txt = '%i:%02i:%02i / %i %%' % (h, m, s, p)
+            if (index.row() == self.dt.act_count()):
+                txt = bproc.sec_to_strtime_interval(d, False)
+            else:
+                hms = bproc.sec_to_strtime_interval(d[1], False)
+                p = int(d[1] / d[0] * 100) if d[0] != 0 else 0
+                txt = '%s / %i %%' % (hms, p)
             self.drawDisplay(painter, option, rect, txt)
-        elif index.column() in [ViewModel.cnames[i][0]
-                                for i in ['lses', 'idle']]:
+            return
+        if ViewModel._is_column(index, 'lses', 'idle', 'l24h'):
             d = index.data()
             if d is not None:
-                if d < 0:
-                    txt = ">%i weeks" % tacmaopt.opt.minactual
-                else:
-                    txt = bproc.sec_to_strtime_interval(d, True)
+                txt = bproc.sec_to_strtime_interval(d, True)
                 rect = QtCore.QRect(option.rect)
                 self.drawDisplay(painter, option, rect, txt)
-        else:
-            super(TableDelegate, self).paint(painter, option, index)
+            return
+        if ViewModel._is_column(index, 'weight'):
+            d = index.data()
+            if d is not None:
+                txt = str(int(index.data() * 100)) + '%'
+                rect = QtCore.QRect(option.rect)
+                self.drawDisplay(painter, option, rect, txt)
+            return
+
+        super(TableDelegate, self).paint(painter, option, index)
 
 
 class MainWindowTable(QtWidgets.QTableView):
@@ -252,6 +313,10 @@ class MainWindowTable(QtWidgets.QTableView):
 
         # header after setting widths
         self.horizontalHeader().sectionResized.connect(self._secresized)
+
+    def mouseDoubleClickEvent(self, event):  # NOQA
+        if event.button() == QtCore.Qt.LeftButton:
+            self._edit_action(self.indexAt(event.pos()))
 
     def _secresized(self, index, oldval, newval):
         if newval < 10:
@@ -311,7 +376,8 @@ class MainWindowTable(QtWidgets.QTableView):
             self.model().edit_act(index, (name, prior, comm))
 
         a = self.model().get_act(index)
-        AddEditDialog(applyfunc, a, self).exec_()
+        if a is not None:
+            AddEditDialog(applyfunc, a, self).exec_()
 
     def _mod_action(self, index):
         a = self.model().get_act(index)

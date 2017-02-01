@@ -127,6 +127,14 @@ class TacmaData(object):
         # modify self
         self.delete_before(curtime - delta)
         self.previous_fn = afn
+        for a in ac.acts:
+            arch_stop = a.last_stop()
+            anew = self._gai(a.iden)
+            if anew is None:
+                continue
+            anew.archived_stop = arch_stop - (curtime - delta)
+            if a.iden == 0:
+                print self.int_to_time(anew.archived_stop)
         # turn on active process
         if atask is not None:
             atask.switch()

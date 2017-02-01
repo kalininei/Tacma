@@ -35,29 +35,6 @@ class TacmaStat(object):
             else:
                 return None
 
-    def idle_since(self, iden):
-        """ Returns duration since the ending of last
-            session lasting more than 5 minutes if inactive.
-            None otherwise
-        """
-        act = self._dt._gai(iden)
-        if act.is_on():
-            return None
-        curtm = self._dt.curtime_to_int()
-        last_end = curtm
-        for i, tm in enumerate(reversed(act.onoff)):
-            if i % 2 == 0:
-                last_end = tm
-                continue
-            dur = last_end - tm
-            if dur > 300:
-                return curtm - last_end
-        if act.created < 0:
-            # impossible to acquire correct result because
-            # last active time is beyond current tacmaOpt file
-            return -1
-        return curtm - act.created
-
     def must_time(self, iden, dur, endtm=None):
         """ ->int.
         Get duration which this task should occupy within
@@ -78,6 +55,13 @@ class TacmaStat(object):
         t1 = self._dt.curtime_to_int() if endtm is None else endtm
         t0 = max(0, t1 - dur)
         return task.dur_within(t0, t1)
+
+    def total_working_time(self, dur, endtm=None):
+        """ ->int. Get duration when any task was active
+        """
+        t1 = self._dt.curtime_to_int() if endtm is None else endtm
+        t0 = max(0, t1 - dur)
+        return self._working_activity.integral(t0, t1)
 
     def _data_changed(self, event, iden):
         # TODO: this could be optimized
