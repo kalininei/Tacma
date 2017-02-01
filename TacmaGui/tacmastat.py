@@ -48,9 +48,14 @@ class TacmaStat(object):
         for i, tm in enumerate(reversed(act.onoff)):
             if i % 2 == 0:
                 last_end = tm
+                continue
             dur = last_end - tm
             if dur > 300:
                 return curtm - last_end
+        if act.created < 0:
+            # impossible to acquire correct result because
+            # last active time is beyond current tacmaOpt file
+            return -1
         return curtm - act.created
 
     def must_time(self, iden, dur, endtm=None):

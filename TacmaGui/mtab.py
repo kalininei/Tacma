@@ -1,5 +1,9 @@
-from PyQt5 import QtWidgets, QtCore, QtGui
+from PyQt5 import QtWidgets, QtCore
 import tacmaopt
+from addeditwid import AddEditDialog
+from manmodwid import ManualModifyDialog
+import bproc
+import functools
 
 
 class ViewModel(QtCore.QAbstractTableModel):
@@ -40,16 +44,6 @@ class ViewModel(QtCore.QAbstractTableModel):
                     if section == self.cnames[k][0]:
                         s = self.cnames[k][1]
             return QtCore.QVariant(s)
-
-        if role == QtCore.Qt.SizeHintRole:
-            if orientation == QtCore.Qt.Horizontal:
-                for k in self.cnames.keys():
-                    if section == self.cnames[k][0]:
-                        # k = self.cnames[k][0]
-                        size = QtCore.QSize(10, 10)
-                        # size.setWidth(50)
-                        size.setHeight(20)
-                        return QtCore.QVariant(size)
 
     def data(self, index, role):
         "overriden"
@@ -163,6 +157,19 @@ class ViewModel(QtCore.QAbstractTableModel):
         i1 = self.createIndex(self.rowCount() - 1, col)
         self.dataChanged.emit(i0, i1)
 
+    def update_row(self, iden):
+        'update row by task identifier'
+        iup = -1
+        for i, a in enumerate(self.dt.acts):
+            if a.iden == iden:
+                iup = i
+                break
+        if iup == -1:
+            return
+        i0 = self.createIndex(iup, 0)
+        i1 = self.createIndex(iup, self.columnCount() - 1)
+        self.dataChanged.emit(i0, i1)
+
     def _tacma_data_changed(self, event, iden):
         if event == 'ActiveTaskChanged':
             self.update_column('status')
@@ -170,6 +177,8 @@ class ViewModel(QtCore.QAbstractTableModel):
             self.update_column('prior')
         elif event == 'NameChanged':
             self.update_column('title')
+        elif event == 'ManualDataChanged':
+            self.update_row(iden)
 
 
 class TableDelegate(QtWidgets.QItemDelegate):
@@ -180,17 +189,18 @@ class TableDelegate(QtWidgets.QItemDelegate):
         super(TableDelegate, self).__init__(parent)
 
     def paint(self, painter, option, index):
+        if not index.isValid():
+            return
         if (index.column() in [ViewModel.cnames[i][0]
                                for i in ['created', 'finished']]):
-            #write date
             d = index.data()
-            if d is not None:
-                rect = QtCore.QRect(option.rect)
-                self.drawDisplay(painter, option, rect, d.strftime('%Y-%m-%d'))
+            #write date
+            rect = QtCore.QRect(option.rect)
+            self.drawDisplay(painter, option, rect, d.strftime('%Y-%m-%d'))
         elif (index.column() in [ViewModel.cnames[i][0]
                                  for i in ['l24h', 'l1w', 'l4w']]):
-            #write statistics
             d = index.data()
+            #write statistics
             rect = QtCore.QRect(option.rect)
             h = int(d[1] / 3600)
             m = int((d[1] - h * 3600) / 60)
@@ -200,121 +210,30 @@ class TableDelegate(QtWidgets.QItemDelegate):
             self.drawDisplay(painter, option, rect, txt)
         elif index.column() in [ViewModel.cnames[i][0]
                                 for i in ['lses', 'idle']]:
-            # write time intervals
             d = index.data()
             if d is not None:
-                rect = QtCore.QRect(option.rect)
-                days = int(d / 86400)
-                d -= days * 86400
-                h = int(d / 3600)
-                d -= h * 3600
-                m = int(d / 60)
-                d -= m * 60
-                s = int(d)
-                if days == 0:
-                    txt = '%i:%02i:%02i' % (h, m, s)
-                elif days == 1:
-                    txt = '1 day %i:%02i:%02i' % (h, m, s)
+                if d < 0:
+                    txt = ">%i weeks" % tacmaopt.opt.minactual
                 else:
-                    txt = '%i days %i:%02i:%02i' % (days, h, m, s)
+                    txt = bproc.sec_to_strtime_interval(d, True)
+                rect = QtCore.QRect(option.rect)
                 self.drawDisplay(painter, option, rect, txt)
         else:
             super(TableDelegate, self).paint(painter, option, index)
-
-
-class AddEditDialog(QtWidgets.QDialog):
-    def __init__(self, apply_func, act=None, parent=None):
-        super(AddEditDialog, self).__init__(parent)
-        self.apply_func = apply_func
-        self.setWindowTitle('Add/Edit Activity')
-        # self.resize(600, self.height())
-        self.resize(tacmaopt.opt.edit_window_Hx, tacmaopt.opt.edit_window_Hy)
-        self.move(tacmaopt.opt.edit_window_x0, tacmaopt.opt.edit_window_y0)
-        layout = QtWidgets.QGridLayout()
-        labtit = QtWidgets.QLabel('Action title', self)
-        labpr = QtWidgets.QLabel('Priority', self)
-        labcom = QtWidgets.QLabel('Comments', self)
-        t = act.name if act else 'Action'
-        self.edtit = QtWidgets.QLineEdit(t, self)
-        t = act.current_priority() if act else '1.0'
-        self.edpr = QtWidgets.QLineEdit(str(t), self)
-        t = act.comment if act else ''
-        self.edcom = QtWidgets.QTextEdit(self)
-        self.edcom.setPlainText(t)
-        self.edcom.setFont(QtGui.QFont('Courier', 10))
-        bbox = QtWidgets.QDialogButtonBox(self)
-        bbox.setStandardButtons(QtWidgets.QDialogButtonBox.Cancel |
-                                QtWidgets.QDialogButtonBox.Ok |
-                                QtWidgets.QDialogButtonBox.Apply)
-        bbox.accepted.connect(self.accept)
-        bbox.rejected.connect(self.reject)
-        ab = bbox.button(QtWidgets.QDialogButtonBox.Apply)
-        ab.clicked.connect(self.applied)
-
-        layout.addWidget(labtit, 0, 0)
-        layout.addWidget(labpr, 1, 0)
-        layout.addWidget(labcom, 2, 0)
-        layout.addWidget(self.edtit, 0, 1)
-        layout.addWidget(self.edpr, 1, 1)
-        layout.addWidget(self.edcom, 2, 1)
-        layout.addWidget(bbox, 3, 0, 1, 2)
-
-        self.setLayout(layout)
-
-    def applied(self):
-        try:
-            self.apply_func(*self.ret_value())
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            QtWidgets.QMessageBox.warning(self, "Warning",
-                                          "Invalid Input: %s" % str(e))
-            return False
-        return True
-
-    def accept(self):
-        if self.applied():
-            super(AddEditDialog, self).accept()
-
-    def ret_value(self):
-        '-> (str name, float priority, str comments)'
-        pr = float(self.edpr.text())
-        if pr < 0 or pr > 10:
-            raise Exception("Priority is a float number within [0, 10.0]")
-        nm = self.edtit.text()
-        if len(nm) < 3:
-            raise Exception("Title should contain at least 3 characters")
-        return (nm, pr, self.edcom.toPlainText())
-
-    def resizeEvent(self, event):  # NOQA
-        'write window size on options file'
-        super(AddEditDialog, self).resizeEvent(event)
-        tacmaopt.opt.edit_window_Hx = self.size().width()
-        tacmaopt.opt.edit_window_Hy = self.size().height()
-
-    def moveEvent(self, event):  # NOQA
-        'write window position on options file'
-        super(AddEditDialog, self).moveEvent(event)
-        tacmaopt.opt.edit_window_x0 = self.x()
-        tacmaopt.opt.edit_window_y0 = self.y()
-
-
-class HHead(QtWidgets.QHeaderView):
-    def __init__(self, parent):
-        super(HHead, self).__init__(QtCore.Qt.Vertical, parent)
 
 
 class MainWindowTable(QtWidgets.QTableView):
     def __init__(self, dt, parent):
         super(MainWindowTable, self).__init__(parent)
 
-        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.customContextMenuRequested.connect(self._context_menu)
-
+        # model and delegate
         self.setModel(ViewModel(dt))
-
         delegate = TableDelegate(dt, self)
         self.setItemDelegate(delegate)
+
+        # contex menu
+        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._context_menu)
 
         #autoupdate table
         self.view_update = QtCore.QTimer(self)
@@ -343,15 +262,13 @@ class MainWindowTable(QtWidgets.QTableView):
                 return
 
     def _context_menu(self, pnt):
-        import functools
         index = self.indexAt(pnt)
 
         menu = QtWidgets.QMenu(self)
         #Edit
         act = QtWidgets.QAction("Edit", self)
         act.setEnabled(index.isValid())
-        act.triggered.connect(
-            functools.partial(self._edit_action, index))
+        act.triggered.connect(functools.partial(self._edit_action, index))
         menu.addAction(act)
         #Add
         act = QtWidgets.QAction("Add", self)
@@ -367,8 +284,13 @@ class MainWindowTable(QtWidgets.QTableView):
         #Remove
         act = QtWidgets.QAction("Remove", self)
         act.setEnabled(index.isValid())
+        act.triggered.connect(functools.partial(self._rem_action, index))
+        menu.addAction(act)
+        #Manual modify
+        act = QtWidgets.QAction("Manual modify", self)
+        act.setEnabled(index.isValid())
         act.triggered.connect(
-            functools.partial(self._rem_action, index))
+            functools.partial(self._mod_action, index))
         menu.addAction(act)
 
         menu.popup(self.viewport().mapToGlobal(pnt))
@@ -390,6 +312,10 @@ class MainWindowTable(QtWidgets.QTableView):
 
         a = self.model().get_act(index)
         AddEditDialog(applyfunc, a, self).exec_()
+
+    def _mod_action(self, index):
+        a = self.model().get_act(index)
+        ManualModifyDialog(self.model().dt, a, self).exec_()
 
     def _fin_action(self, index):
         self.model().finish(index)

@@ -19,6 +19,9 @@ class ProgOptions(object):
         #edit window size and position
         self.edit_window_Hx, self.edit_window_Hy = 600, 600
         self.edit_window_x0, self.edit_window_y0 = 50, 50
+        #modify window size and position
+        self.mod_window_Hx, self.mod_window_Hy = 600, 600
+        self.mod_window_x0, self.mod_window_y0 = 50, 50
         #column widths and vis
         self.colwidths = {}
         self.colvisible = {}
@@ -77,6 +80,11 @@ class ProgOptions(object):
         ET.SubElement(w, 'HY').text = str(self.edit_window_Hy)
         ET.SubElement(w, 'X0').text = str(self.edit_window_x0)
         ET.SubElement(w, 'Y0').text = str(self.edit_window_y0)
+        w = ET.SubElement(root, 'MOD_WINDOW')
+        ET.SubElement(w, 'HX').text = str(self.mod_window_Hx)
+        ET.SubElement(w, 'HY').text = str(self.mod_window_Hy)
+        ET.SubElement(w, 'X0').text = str(self.mod_window_x0)
+        ET.SubElement(w, 'Y0').text = str(self.mod_window_y0)
         w = ET.SubElement(root, 'COLUMN_OPTIONS')
         ks = self.colwidths.keys() + self.colvisible.keys()
         for k in set(ks):
@@ -99,6 +107,7 @@ class ProgOptions(object):
         bproc.xmlindent(root)
         tree = ET.ElementTree(root)
         tree.write(self.opt_fn, xml_declaration=True, encoding='utf-8')
+        print "written"
 
     def read(self):
         'tries to read data from default location'
@@ -144,6 +153,13 @@ class ProgOptions(object):
             self.edit_window_Hy = int(root.find('EDIT_WINDOW/HY').text)
             self.edit_window_x0 = int(root.find('EDIT_WINDOW/X0').text)
             self.edit_window_y0 = int(root.find('EDIT_WINDOW/Y0').text)
+        except:
+            pass
+        try:
+            self.mod_window_Hx = int(root.find('MOD_WINDOW/HX').text)
+            self.mod_window_Hy = int(root.find('MOD_WINDOW/HY').text)
+            self.mod_window_x0 = int(root.find('MOD_WINDOW/X0').text)
+            self.mod_window_y0 = int(root.find('MOD_WINDOW/Y0').text)
         except:
             pass
         try:

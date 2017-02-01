@@ -1,7 +1,9 @@
+import copy
+import os.path
+
 
 def resfile(fname):
     'get file from resources'
-    import os.path
     return os.path.join(os.path.dirname(__file__), fname)
 
 
@@ -24,6 +26,26 @@ def get_icon(s):
             QtGui.QIcon(QtGui.QPixmap(resfile('misc/icon_stop.png'))),
         }
     return _icon_set[s]
+
+
+def sec_to_strtime_interval(d, use_days=False):
+    ' -> returns string representing time interval given in seconds'
+    if use_days:
+        days = int(d / 86400)
+        d -= days * 86400
+    else:
+        days = 0
+    h = int(d / 3600)
+    d -= h * 3600
+    m = int(d / 60)
+    d -= m * 60
+    s = int(d)
+    if days == 0:
+        return '%i:%02i:%02i' % (h, m, s)
+    elif days == 1:
+        return '1 day %i:%02i:%02i' % (h, m, s)
+    else:
+        return '%i days %i:%02i:%02i' % (days, h, m, s)
 
 
 #xml indent
@@ -57,6 +79,16 @@ class PieceWiseFun(object):
         if dt is not None:
             for d in sorted(dt, key=lambda x: x[0]):
                 self.add_section(d[0], d[1], d[2], boundto)
+
+    @classmethod
+    def raw_create(cls, dt):
+        """ dt -- [(tstart, tend, value), ....]
+            creates object using trusted sorted data.
+            dt[i][tstart] should be greater or equal dt[i-1][end] etc.
+        """
+        ret = cls()
+        ret._dt = copy.deepcopy(dt)
+        return ret
 
     def add_section(self, tstart, tend, value, boundto=None):
         """ Adds section [tstart, tend] with value
@@ -110,25 +142,6 @@ class PieceWiseFun(object):
         newdt.extend(self._dt[ib:])
         self._dt = newdt
         self._dt.sort(key=lambda x: x[0])
-
-        # if value is not None:
-        #     newdt = [(tstart, tend, value)]
-        # else:
-        #     newdt = []
-        # for d in self._dt:
-        #     if d[0] >= tend or d[1] <= tstart:
-        #         newdt.append(d)
-        #     elif d[0] < tstart < d[1] and d[1] < tend < d[1]:
-        #         newdt.append((d[0], tstart, d[2]))
-        #         newdt.append((tend, d[1], d[2]))
-        #     elif d[0] >= tstart and d[1] <= tend:
-        #         continue
-        #     elif d[0] < tend < d[1]:
-        #         newdt.append((tend, d[1], d[2]))
-        #     elif d[0] < tstart < d[1]:
-        #         newdt.append((d[0], tstart, d[2]))
-        # newdt.sort(key=lambda x: x[0])
-        # self._dt = newdt
 
     def clear(self):
         " removes all information "
