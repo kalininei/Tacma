@@ -113,7 +113,7 @@ if __name__ == '__main__':
     from PyQt5 import QtWidgets
     app = QtWidgets.QApplication(sys.argv)
     sys.exit(
-        load_entry_point('Tacma==0.2', 'gui_scripts', 'Tacma')()
+        load_entry_point('Tacma==0.3', 'gui_scripts', 'Tacma')()
     )
 """ % config.version
 f = open('/usr/bin/%s' % config.progname, 'w')
