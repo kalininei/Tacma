@@ -13,7 +13,7 @@ class TrayMenu(QtWidgets.QMenu):
         #Otherwise first appearence of menu goes under screen on X11
         self.rebuild()
 
-    def mouseReleaseEvent(self, e):
+    def mouseReleaseEvent(self, e):  # NOQA
         'overriden to not close menu after trigger'
         action = self.activeAction()
         if action is not None and action.isEnabled():
@@ -54,7 +54,7 @@ class TrayMenu(QtWidgets.QMenu):
             if task.is_alive:
                 act = QtWidgets.QAction(task.name, self)
                 act.toggled.connect(
-                        functools.partial(self._act_task_checked, task.iden))
+                    functools.partial(self._act_task_checked, task.iden))
                 act.setCheckable(True)
                 self.addAction(act)
                 self._tact[task] = act
@@ -71,7 +71,7 @@ class TrayMenu(QtWidgets.QMenu):
                 v.toggled.disconnect()
                 v.setChecked(k.is_on())
                 v.toggled.connect(
-                        functools.partial(self._act_task_checked, k.iden))
+                    functools.partial(self._act_task_checked, k.iden))
 
 
 class TrayIcon(QtWidgets.QSystemTrayIcon):
@@ -79,13 +79,14 @@ class TrayIcon(QtWidgets.QSystemTrayIcon):
     def __init__(self, mw):
         'mw - MainWindow'
         super(TrayIcon, self).__init__(bproc.get_icon('icon-stop'),
-                QtWidgets.qApp)
+                                       QtWidgets.qApp)
         self.win = mw
         self.data = mw.data
         self.data.emitter.subscribe(self, self._tacma_data_changed)
         self.setupUI()
+        self.setToolTip('no task')
 
-    def setupUI(self):
+    def setupUI(self):  # NOQA
         self.activated.connect(self._act_activated)
         self.menu = TrayMenu(self.data)
         self.setContextMenu(self.menu)
@@ -104,9 +105,9 @@ class TrayIcon(QtWidgets.QSystemTrayIcon):
     def _tacma_data_changed(self, event, iden):
         if event == 'ActiveTaskChanged':
             if iden is None:
+                self.setToolTip('no task')
                 self.setIcon(bproc.get_icon('icon-stop'))
-                self.setToolTip('')
             else:
-                self.setIcon(bproc.get_icon('icon-run'))
                 self.setToolTip('%s' % self.data._gai(iden).name)
+                self.setIcon(bproc.get_icon('icon-run'))
             self.menu.refresh_checkboxes()

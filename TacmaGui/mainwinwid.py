@@ -1,9 +1,10 @@
 from PyQt5 import QtWidgets, QtCore, QtGui
-from mtab import MainWindowTable
+from mtab import MainWindowTable, ViewModel
 import tacmaopt
 from wfile import TacmaData
 import bproc
 from traywid import TrayIcon
+import functools
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -45,6 +46,24 @@ class MainWindow(QtWidgets.QMainWindow):
         exit_action.triggered.connect(QtWidgets.qApp.quit)
         filemenu.addAction(exit_action)
 
+        viewmenu = menubar.addMenu('&View')
+        viewsubs = [None] * len(ViewModel.cnames)
+        for k, v in ViewModel.cnames.iteritems():
+            if v[1] == '':
+                continue
+            act1 = QtWidgets.QAction(v[1], self)
+            act1.setCheckable(True)
+            act1.triggered.connect(functools.partial(
+                self.set_column_visible, v[0], k))
+            if k in tacmaopt.opt.colvisible:
+                act1.setChecked(tacmaopt.opt.colvisible[k])
+            else:
+                act1.setChecked(True)
+            viewsubs[v[0]] = act1
+        for v in viewsubs:
+            if v is not None:
+                viewmenu.addAction(v)
+
         #central widget
         self.tab = MainWindowTable(self.data, self)
         self.setCentralWidget(self.tab)
@@ -68,6 +87,10 @@ class MainWindow(QtWidgets.QMainWindow):
             event.ignore()
             return True
         return super(MainWindow, self).event(event)
+
+    def set_column_visible(self, colint, colcode, val):
+        tacmaopt.opt.colvisible[colcode] = val
+        self.tab.setColumnHidden(colint, not val)
 
     def _autosave(self):
         'save to opt.autosave'

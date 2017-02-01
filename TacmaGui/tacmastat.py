@@ -35,6 +35,24 @@ class TacmaStat(object):
             else:
                 return None
 
+    def idle_since(self, iden):
+        """ Returns duration since the ending of last
+            session lasting more than 5 minutes if inactive.
+            None otherwise
+        """
+        act = self._dt._gai(iden)
+        if act.is_on():
+            return None
+        curtm = self._dt.curtime_to_int()
+        last_end = curtm
+        for i, tm in enumerate(reversed(act.onoff)):
+            if i % 2 == 0:
+                last_end = tm
+            dur = last_end - tm
+            if dur > 300:
+                return curtm - last_end
+        return curtm - act.created
+
     def must_time(self, iden, dur, endtm=None):
         """ ->int.
         Get duration which this task should occupy within

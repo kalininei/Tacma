@@ -10,27 +10,28 @@ class ViewModel(QtCore.QAbstractTableModel):
 
     #table columns names and order
     cnames = {'status': (0, ''),
-                'title': (1, 'Title'),
-                'id': (2, 'id'),
-                'prior': (3, 'Priority'),
-                'weight': (4, 'Weight'),
-                'created': (5, 'Created'),
-                'finished': (6, 'Finished'),
-                'l24h': (7, 'Last 24h'),
-                'l1w': (8, 'Last week'),
-                'l4w': (9, 'Last 4 weeks'),
-                'lses': (10, 'Last session')
+              'title': (1, 'Title'),
+              'id': (2, 'id'),
+              'prior': (3, 'Priority'),
+              'weight': (4, 'Weight'),
+              'created': (5, 'Created'),
+              'finished': (6, 'Finished'),
+              'l24h': (7, 'Last 24h'),
+              'l1w': (8, 'Last week'),
+              'l4w': (9, 'Last 4 weeks'),
+              'lses': (10, 'Last session'),
+              'idle': (11, 'Idle'),
               }
 
-    def rowCount(self, parent=None):
+    def rowCount(self, parent=None):  # NOQA
         "overriden"
         return self.dt.act_count()
 
-    def columnCount(self, parent=None):
+    def columnCount(self, parent=None):  # NOQA
         "overriden"
         return len(self.cnames)
 
-    def headerData(self, section, orientation, role):
+    def headerData(self, section, orientation, role):  # NOQA
         "overriden"
         if role == QtCore.Qt.DisplayRole:
             s = None
@@ -39,6 +40,16 @@ class ViewModel(QtCore.QAbstractTableModel):
                     if section == self.cnames[k][0]:
                         s = self.cnames[k][1]
             return QtCore.QVariant(s)
+
+        if role == QtCore.Qt.SizeHintRole:
+            if orientation == QtCore.Qt.Horizontal:
+                for k in self.cnames.keys():
+                    if section == self.cnames[k][0]:
+                        # k = self.cnames[k][0]
+                        size = QtCore.QSize(10, 10)
+                        # size.setWidth(50)
+                        size.setHeight(20)
+                        return QtCore.QVariant(size)
 
     def data(self, index, role):
         "overriden"
@@ -53,7 +64,7 @@ class ViewModel(QtCore.QAbstractTableModel):
             elif index.column() == self.cnames['prior'][0]:
                 return self.dt.priority(iden)
             elif index.column() == self.cnames['weight'][0]:
-                return self.dt.weight(iden)
+                return str(round(self.dt.weight(iden) * 100)) + ' %'
             elif index.column() == self.cnames['created'][0]:
                 return self.dt.created_time(iden)
             elif index.column() == self.cnames['finished'][0]:
@@ -69,6 +80,8 @@ class ViewModel(QtCore.QAbstractTableModel):
                         self.dt.stat.real_time(iden, 2419200))
             elif index.column() == self.cnames['lses'][0]:
                 return self.dt.stat.last_session(iden)
+            elif index.column() == self.cnames['idle'][0]:
+                return self.dt.stat.idle_since(iden)
         elif role == QtCore.Qt.CheckStateRole:
             iden = self.get_iden(index)
             if index.column() == self.cnames['status'][0]:
@@ -76,7 +89,7 @@ class ViewModel(QtCore.QAbstractTableModel):
                     else QtCore.Qt.Unchecked
         return None
 
-    def setData(self, index, value, role):
+    def setData(self, index, value, role):  # NOQA
         if not index.isValid():
             return None
         if index.column() == 0:
@@ -121,8 +134,9 @@ class ViewModel(QtCore.QAbstractTableModel):
     def remove(self, index):
         txt = 'Are you sure you want to completely remove '
         txt += 'action %s from all statistics?' % self.get_act(index).name
-        a = QtWidgets.QMessageBox.question(None, "Tacma Confirmation",
-                txt, QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+        a = QtWidgets.QMessageBox.question(
+            None, "Tacma Confirmation",
+            txt, QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
         if a == QtWidgets.QMessageBox.Yes:
             self.dt.remove(self.get_iden(index))
             self.layoutChanged.emit()
@@ -167,14 +181,14 @@ class TableDelegate(QtWidgets.QItemDelegate):
 
     def paint(self, painter, option, index):
         if (index.column() in [ViewModel.cnames[i][0]
-                for i in ['created', 'finished']]):
+                               for i in ['created', 'finished']]):
             #write date
             d = index.data()
             if d is not None:
                 rect = QtCore.QRect(option.rect)
                 self.drawDisplay(painter, option, rect, d.strftime('%Y-%m-%d'))
         elif (index.column() in [ViewModel.cnames[i][0]
-                for i in ['l24h', 'l1w', 'l4w']]):
+                                 for i in ['l24h', 'l1w', 'l4w']]):
             #write statistics
             d = index.data()
             rect = QtCore.QRect(option.rect)
@@ -184,15 +198,25 @@ class TableDelegate(QtWidgets.QItemDelegate):
             p = int(d[1] / d[0] * 100) if d[0] != 0 else 0
             txt = '%i:%02i:%02i / %i %%' % (h, m, s, p)
             self.drawDisplay(painter, option, rect, txt)
-        elif index.column() in [ViewModel.cnames['lses'][0]]:
+        elif index.column() in [ViewModel.cnames[i][0]
+                                for i in ['lses', 'idle']]:
             # write time intervals
             d = index.data()
             if d is not None:
                 rect = QtCore.QRect(option.rect)
+                days = int(d / 86400)
+                d -= days * 86400
                 h = int(d / 3600)
-                m = int((d - h * 3600) / 60)
-                s = int(d - h * 3600 - 60 * m)
-                txt = '%i:%02i:%02i' % (h, m, s)
+                d -= h * 3600
+                m = int(d / 60)
+                d -= m * 60
+                s = int(d)
+                if days == 0:
+                    txt = '%i:%02i:%02i' % (h, m, s)
+                elif days == 1:
+                    txt = '1 day %i:%02i:%02i' % (h, m, s)
+                else:
+                    txt = '%i days %i:%02i:%02i' % (days, h, m, s)
                 self.drawDisplay(painter, option, rect, txt)
         else:
             super(TableDelegate, self).paint(painter, option, index)
@@ -203,7 +227,9 @@ class AddEditDialog(QtWidgets.QDialog):
         super(AddEditDialog, self).__init__(parent)
         self.apply_func = apply_func
         self.setWindowTitle('Add/Edit Activity')
-        self.resize(600, self.height())
+        # self.resize(600, self.height())
+        self.resize(tacmaopt.opt.edit_window_Hx, tacmaopt.opt.edit_window_Hy)
+        self.move(tacmaopt.opt.edit_window_x0, tacmaopt.opt.edit_window_y0)
         layout = QtWidgets.QGridLayout()
         labtit = QtWidgets.QLabel('Action title', self)
         labpr = QtWidgets.QLabel('Priority', self)
@@ -218,8 +244,8 @@ class AddEditDialog(QtWidgets.QDialog):
         self.edcom.setFont(QtGui.QFont('Courier', 10))
         bbox = QtWidgets.QDialogButtonBox(self)
         bbox.setStandardButtons(QtWidgets.QDialogButtonBox.Cancel |
-                QtWidgets.QDialogButtonBox.Ok |
-                QtWidgets.QDialogButtonBox.Apply)
+                                QtWidgets.QDialogButtonBox.Ok |
+                                QtWidgets.QDialogButtonBox.Apply)
         bbox.accepted.connect(self.accept)
         bbox.rejected.connect(self.reject)
         ab = bbox.button(QtWidgets.QDialogButtonBox.Apply)
@@ -242,7 +268,7 @@ class AddEditDialog(QtWidgets.QDialog):
             import traceback
             traceback.print_exc()
             QtWidgets.QMessageBox.warning(self, "Warning",
-                    "Invalid Input: %s" % str(e))
+                                          "Invalid Input: %s" % str(e))
             return False
         return True
 
@@ -259,6 +285,23 @@ class AddEditDialog(QtWidgets.QDialog):
         if len(nm) < 3:
             raise Exception("Title should contain at least 3 characters")
         return (nm, pr, self.edcom.toPlainText())
+
+    def resizeEvent(self, event):  # NOQA
+        'write window size on options file'
+        super(AddEditDialog, self).resizeEvent(event)
+        tacmaopt.opt.edit_window_Hx = self.size().width()
+        tacmaopt.opt.edit_window_Hy = self.size().height()
+
+    def moveEvent(self, event):  # NOQA
+        'write window position on options file'
+        super(AddEditDialog, self).moveEvent(event)
+        tacmaopt.opt.edit_window_x0 = self.x()
+        tacmaopt.opt.edit_window_y0 = self.y()
+
+
+class HHead(QtWidgets.QHeaderView):
+    def __init__(self, parent):
+        super(HHead, self).__init__(QtCore.Qt.Vertical, parent)
 
 
 class MainWindowTable(QtWidgets.QTableView):
@@ -278,6 +321,27 @@ class MainWindowTable(QtWidgets.QTableView):
         self.view_update.timeout.connect(self.model().timer_view_update)
         self.view_update.start(tacmaopt.opt.update_interval * 1000)
 
+        #column widths
+        for k, v in tacmaopt.opt.colwidths.iteritems():
+            info = ViewModel.cnames[k]
+            self.setColumnWidth(info[0], v)
+
+        #column visible
+        for k, v in tacmaopt.opt.colvisible.iteritems():
+            info = ViewModel.cnames[k]
+            self.setColumnHidden(info[0], not v)
+
+        # header after setting widths
+        self.horizontalHeader().sectionResized.connect(self._secresized)
+
+    def _secresized(self, index, oldval, newval):
+        if newval < 10:
+            return
+        for k, v in ViewModel.cnames.iteritems():
+            if v[0] == index:
+                tacmaopt.opt.colwidths[k] = newval
+                return
+
     def _context_menu(self, pnt):
         import functools
         index = self.indexAt(pnt)
@@ -287,7 +351,7 @@ class MainWindowTable(QtWidgets.QTableView):
         act = QtWidgets.QAction("Edit", self)
         act.setEnabled(index.isValid())
         act.triggered.connect(
-                functools.partial(self._edit_action, index))
+            functools.partial(self._edit_action, index))
         menu.addAction(act)
         #Add
         act = QtWidgets.QAction("Add", self)
@@ -296,15 +360,15 @@ class MainWindowTable(QtWidgets.QTableView):
         #Finish
         act = QtWidgets.QAction("Finish", self)
         act.setEnabled(index.isValid() and
-                self.model().get_act(index).is_alive())
+                       self.model().get_act(index).is_alive())
         act.triggered.connect(
-                functools.partial(self._fin_action, index))
+            functools.partial(self._fin_action, index))
         menu.addAction(act)
         #Remove
         act = QtWidgets.QAction("Remove", self)
         act.setEnabled(index.isValid())
         act.triggered.connect(
-                functools.partial(self._rem_action, index))
+            functools.partial(self._rem_action, index))
         menu.addAction(act)
 
         menu.popup(self.viewport().mapToGlobal(pnt))
@@ -315,7 +379,7 @@ class MainWindowTable(QtWidgets.QTableView):
                 self.__tmp = self.model().add_action(name, prior, comm)
             else:
                 self.model().edit_act_by_iden(
-                        self.__tmp, (name, prior, comm))
+                    self.__tmp, (name, prior, comm))
 
         self.__tmp = None
         AddEditDialog(applyfunc, None, self).exec_()
@@ -332,5 +396,3 @@ class MainWindowTable(QtWidgets.QTableView):
 
     def _rem_action(self, index):
         self.model().remove(index)
-
-

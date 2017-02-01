@@ -16,6 +16,12 @@ class ProgOptions(object):
         #main window size and position
         self.Hx, self.Hy = 800, 300
         self.x0, self.y0 = 0, 0
+        #edit window size and position
+        self.edit_window_Hx, self.edit_window_Hy = 600, 600
+        self.edit_window_x0, self.edit_window_y0 = 50, 50
+        #column widths and vis
+        self.colwidths = {}
+        self.colvisible = {}
         #autosave in minutes
         self.autosave = 2
         #backup
@@ -66,6 +72,26 @@ class ProgOptions(object):
         ET.SubElement(w, 'HY').text = str(self.Hy)
         ET.SubElement(w, 'X0').text = str(self.x0)
         ET.SubElement(w, 'Y0').text = str(self.y0)
+        w = ET.SubElement(root, 'EDIT_WINDOW')
+        ET.SubElement(w, 'HX').text = str(self.edit_window_Hx)
+        ET.SubElement(w, 'HY').text = str(self.edit_window_Hy)
+        ET.SubElement(w, 'X0').text = str(self.edit_window_x0)
+        ET.SubElement(w, 'Y0').text = str(self.edit_window_y0)
+        w = ET.SubElement(root, 'COLUMN_OPTIONS')
+        ks = self.colwidths.keys() + self.colvisible.keys()
+        for k in set(ks):
+            w1 = ET.SubElement(w, 'COL')
+            w1.attrib['id'] = k
+            try:
+                v = self.colwidths[k]
+                ET.SubElement(w1, 'WIDTH').text = str(v)
+            except:
+                pass
+            try:
+                v = self.colvisible[k]
+                ET.SubElement(w1, 'VIS').text = str(int(v))
+            except:
+                pass
         ET.SubElement(root, 'UPDATE_INT').text = str(self.update_interval)
         ET.SubElement(root, 'ARCHIVATE').text = str(self.archivate)
         ET.SubElement(root, 'MINACTUAL').text = str(self.minactual)
@@ -111,6 +137,29 @@ class ProgOptions(object):
             self.Hy = int(root.find('MAIN_WINDOW/HY').text)
             self.x0 = int(root.find('MAIN_WINDOW/X0').text)
             self.y0 = int(root.find('MAIN_WINDOW/Y0').text)
+        except:
+            pass
+        try:
+            self.edit_window_Hx = int(root.find('EDIT_WINDOW/HX').text)
+            self.edit_window_Hy = int(root.find('EDIT_WINDOW/HY').text)
+            self.edit_window_x0 = int(root.find('EDIT_WINDOW/X0').text)
+            self.edit_window_y0 = int(root.find('EDIT_WINDOW/Y0').text)
+        except:
+            pass
+        try:
+            nd = root.find('COLUMN_OPTIONS')
+            for n in nd.findall('COL'):
+                if 'id' not in n.attrib:
+                    continue
+                code = n.attrib['id']
+                try:
+                    self.colwidths[code] = int(n.find('WIDTH').text)
+                except:
+                    pass
+                try:
+                    self.colvisible[code] = bool(int(n.find('VIS').text))
+                except:
+                    pass
         except:
             pass
         try:
